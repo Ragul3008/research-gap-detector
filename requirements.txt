@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────
+# AI Research Novelty & Gap Detector
+# requirements.txt — v2.0
+# Python 3.10 / 3.11 compatible
+# Install: pip install -r requirements.txt
+# ─────────────────────────────────────────────
+
+# ── Core ML & NLP ────────────────────────────
+sentence-transformers==2.3.1
+faiss-cpu==1.7.4
+scikit-learn==1.3.2
+numpy==1.26.4
+scipy==1.11.4
+
+# ── NLP support ──────────────────────────────
+transformers==4.35.0
+torch==2.1.2
+tokenizers==0.14.1
+
+# ── Topic modelling ───────────────────────────
+bertopic==0.15.0
+
+# ── API Backend ──────────────────────────────
+fastapi==0.111.1
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+python-multipart==0.0.9
+httpx==0.27.0
+
+# ── Frontend ─────────────────────────────────
+streamlit==1.37.0
+plotly==5.22.0
+requests==2.32.3
+
+# ── Data handling ─────────────────────────────
+pandas==2.2.2
+openpyxl==3.1.5
+
+# ── LLM — Google Gemini ───────────────────────
+google-generativeai==0.7.2
+
+# ── DevOps & utilities ────────────────────────
+python-dotenv==1.0.1
+tqdm==4.66.4
+
+# ── Evaluation notebook ───────────────────────
+jupyter==1.0.0
+matplotlib==3.9.1
+seaborn==0.13.2
+ipykernel==6.29.5
