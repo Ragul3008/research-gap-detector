@@ -390,7 +390,7 @@ def render_results(result: Dict[str, Any]):
                 st.markdown(
                     f'<div class="phrase-match">🔤 <b>"{pm.get("phrase","")}"</b> '
                     f'({pm.get("word_count",0)} words) — '
-                    f'{pm.get("paper_title","")[:60)} ({pm.get("paper_year","")})</div>',
+                    f'{pm.get("paper_title","")[:60]} ({pm.get("paper_year","")})</div>',
                     unsafe_allow_html=True
                 )
     else:
