@@ -1,6 +1,16 @@
 # 🔬 AI Research Novelty & Gap Detector
 ### For Arts & Science PhD Scholars in India
 
+---
+title: Research Gap Detector
+emoji: 🔍
+colorFrom: blue
+colorTo: purple
+sdk: streamlit
+app_file: frontend/app.py
+pinned: false
+---
+
 A production-ready AI system that helps Indian PhD scholars evaluate the originality of their research topics, detect literature gaps, and get actionable improvement suggestions.
 
 ---
