@@ -8,7 +8,8 @@ scipy==1.11.4
 bertopic==0.15.0
 streamlit==1.37.0
 plotly==5.22.0
-pandas==2.2.2
+pandas>=2.2.3
+tokenizers>=0.15.0
 google-generativeai==0.7.2
 python-dotenv==1.0.1
 tqdm==4.66.4
