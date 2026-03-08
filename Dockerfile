@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ─────────────────────────────────────────────
 # Hugging Face Docker Deployment
 # AI Research Novelty & Gap Detector v3.0
@@ -24,10 +25,19 @@ RUN apt-get update && apt-get install -y \
     libgomp1 \
     gcc \
     g++ \
+=======
+FROM python:3.13.5-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+>>>>>>> aa4dafb06eb9ac91886b1d5fb981f1a07ae66c3d
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+<<<<<<< HEAD
 # Copy requirements first (for Docker layer caching)
 COPY requirements.txt .
 
@@ -57,3 +67,15 @@ CMD ["python", "-m", "streamlit", "run", "app.py", \
      "--server.headless=true", \
      "--server.fileWatcherType=none", \
      "--browser.gatherUsageStats=false"]
+=======
+COPY requirements.txt ./
+COPY src/ ./src/
+
+RUN pip3 install -r requirements.txt
+
+EXPOSE 8501
+
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+
+ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+>>>>>>> aa4dafb06eb9ac91886b1d5fb981f1a07ae66c3d
