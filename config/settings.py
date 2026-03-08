@@ -29,7 +29,7 @@ METADATA_PATH   = EMBEDDINGS_DIR / "metadata.pkl"
 # Fallback: all-MiniLM-L6-v2    (lightweight, fast)
 EMBEDDING_MODEL_NAME = os.getenv(
     "EMBEDDING_MODEL",
-    "BAAI/bge-large-en-v1.5"
+    "all-MiniLM-L6-v2"
 )
 EMBEDDING_DIM = 1024   # bge-large-en dimension; 384 for MiniLM
 BATCH_SIZE    = 32
