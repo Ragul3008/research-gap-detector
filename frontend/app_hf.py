@@ -524,7 +524,14 @@ def main():
         st.markdown("**For PhD Scholars — India**")
         st.divider()
         st.markdown("### ⚙️ Settings")
-        top_k      = st.slider("Papers to retrieve", 3, 15, 8)
+        top_k = st.number_input(
+    "Number of papers to search",
+    min_value=1,
+    value=10,
+    step=1,
+    help="Enter how many papers to retrieve (no limit)"
+)
+        top_k = int(top_k)
         check_plag = st.toggle("Plagiarism Check", value=True)
         st.divider()
         st.markdown("### 📖 What This Tool Does")
