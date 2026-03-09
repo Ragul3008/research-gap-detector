@@ -520,7 +520,7 @@ def render_results(result: Dict[str, Any]):
 # ─── Main ────────────────────────────────────
 def main():
     with st.sidebar:
-        st.markdown("## 🔬 Research Detector v3.0")
+        st.markdown("## 🔬 Research Detector Agent")
         st.markdown("**For PhD Scholars — India**")
         st.divider()
         st.markdown("### ⚙️ Settings")
