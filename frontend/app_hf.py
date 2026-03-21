@@ -92,13 +92,44 @@ def run_analysis(retriever,title,abstract,keywords,domain,top_k,check_plagiarism
             "hallucination":{"grounding_score":hallucination.get("grounding_score",100),"label":hallucination.get("label",""),"color":hallucination.get("color","#2ecc71"),"hallucination_count":hallucination.get("hallucination_count",0),"total_claims":hallucination.get("total_claims",0),"flagged_claims":hallucination.get("flagged_claims",[]),"warnings":hallucination.get("warnings",[]),"summary":hallucination.get("summary","")},
             "plagiarism":plagiarism}
 
-def gauge(v,t,s,c):
-    fig=go.Figure(go.Indicator(mode="gauge+number",value=v,title={"text":t,"font":{"size":13}},number={"suffix":s,"font":{"size":28,"color":c}},gauge={"axis":{"range":[0,100]},"bar":{"color":c},"steps":[{"range":[0,40],"color":"#ffebee"},{"range":[40,70],"color":"#fff8e1"},{"range":[70,100],"color":"#e8f5e9"}]}})
-    fig.update_layout(height=220,margin=dict(l=15,r=15,t=55,b=10),paper_bgcolor="rgba(0,0,0,0)"); return fig
+def gauge(v, t, s, c):
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number", value=v,
+        title={"text": t, "font": {"size": 13}},
+        number={"suffix": s, "font": {"size": 28, "color": c}},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar":  {"color": c},
+            "steps": [
+                {"range": [0,  40],  "color": "#ffebee"},
+                {"range": [40, 70],  "color": "#fff8e1"},
+                {"range": [70, 100], "color": "#e8f5e9"},
+            ],
+        }
+    ))
+    fig.update_layout(height=220, margin=dict(l=15, r=15, t=55, b=10),
+                      paper_bgcolor="rgba(0,0,0,0)")
+    return fig
 
-def plagiarism_gauge(score,color):
-    fig=go.Figure(go.Indicator(mode="gauge+number",value=score,title={"text":"<b>Plagiarism Score</b><br><small>Lower is better</small>","font":{"size":13}},number={"suffix":"%","font":{"size":28,"color":color}},gauge={"axis":{"range":[0,100]},"bar":{"color":color},"steps":[{"range":[0,15],"color":"#e8f5e9"},{"range":[15,40],"color":"#e3f2fd"},{"range":[40,70],"color":"#fff8e1"},{"range":[70,100],"color":"#ffebee"}]}})
-    fig.update_layout(height=220,margin=dict(l=15,r=15,t=55,b=10),paper_bgcolor="rgba(0,0,0,0)"); return fig
+def plagiarism_gauge(score, color):
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number", value=score,
+        title={"text": "<b>Plagiarism Score</b><br><small>Lower is better</small>", "font": {"size": 13}},
+        number={"suffix": "%", "font": {"size": 28, "color": color}},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar":  {"color": color},
+            "steps": [
+                {"range": [0,  15],  "color": "#e8f5e9"},
+                {"range": [15, 40],  "color": "#e3f2fd"},
+                {"range": [40, 70],  "color": "#fff8e1"},
+                {"range": [70, 100], "color": "#ffebee"},
+            ],
+        }
+    ))
+    fig.update_layout(height=220, margin=dict(l=15, r=15, t=55, b=10),
+                      paper_bgcolor="rgba(0,0,0,0)")
+    return fig
 
 def sim_bar(papers):
     titles=[p["title"][:50]+"…" if len(p["title"])>50 else p["title"] for p in papers]
