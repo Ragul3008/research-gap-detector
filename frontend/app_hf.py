@@ -3,9 +3,8 @@ frontend/app_hf.py
 ------------------
 Hugging Face Spaces — single process Streamlit app.
 Tab 1: Research Gap Analyser
-Tab 2: Paper Downloader
-  - Section A: Journal Articles (9 global + 10 Indian sources)
-  - Section B: PhD Thesis Finder (15 dedicated thesis repositories)
+Tab 2: Paper & Thesis Downloader (9 Journal + 13 PhD Thesis sources)
+       Mobile-friendly: uses st.download_button for browser-native download
 """
 
 import sys, re, time, json, os, requests, xml.etree.ElementTree as ET
@@ -49,9 +48,8 @@ st.markdown("""
 .free-badge{background:#2ecc71;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:700;}
 .link-badge{background:#f39c12;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:700;}
 .thesis-card{background:#f3e5f5;border-left:4px solid #6a1b9a;padding:14px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.india-tag{background:#ff6f00;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
 .thesis-tag{background:#6a1b9a;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
-.link-box{background:#e8f5e9;border:2px solid #388e3c;padding:12px;border-radius:8px;margin:6px 0;}
+.india-tag{background:#ff6f00;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -95,11 +93,11 @@ def run_analysis(retriever,title,abstract,keywords,domain,top_k,check_plagiarism
             "plagiarism":plagiarism}
 
 def gauge(v,t,s,c):
-    fig=go.Figure(go.Indicator(mode="gauge+number",value=v,title={"text":t,"font":{"size":13}},number={"suffix":s,"font":{"size":28,"color":c}},gauge={"axis":{"range":[0,100]},"bar":{"color":c},"steps":[{"range":[0,40],"color":"#ffebee"},{"range":[40,70],"color":"#fff8e1"},{"range":[70,100],"color":"#e8f5e9"}]}))
+    fig=go.Figure(go.Indicator(mode="gauge+number",value=v,title={"text":t,"font":{"size":13}},number={"suffix":s,"font":{"size":28,"color":c}},gauge={"axis":{"range":[0,100]},"bar":{"color":c},"steps":[{"range":[0,40],"color":"#ffebee"},{"range":[40,70],"color":"#fff8e1"},{"range":[70,100],"color":"#e8f5e9"}]}})
     fig.update_layout(height=220,margin=dict(l=15,r=15,t=55,b=10),paper_bgcolor="rgba(0,0,0,0)"); return fig
 
 def plagiarism_gauge(score,color):
-    fig=go.Figure(go.Indicator(mode="gauge+number",value=score,title={"text":"<b>Plagiarism Score</b><br><small>Lower is better</small>","font":{"size":13}},number={"suffix":"%","font":{"size":28,"color":color}},gauge={"axis":{"range":[0,100]},"bar":{"color":color},"steps":[{"range":[0,15],"color":"#e8f5e9"},{"range":[15,40],"color":"#e3f2fd"},{"range":[40,70],"color":"#fff8e1"},{"range":[70,100],"color":"#ffebee"}]}))
+    fig=go.Figure(go.Indicator(mode="gauge+number",value=score,title={"text":"<b>Plagiarism Score</b><br><small>Lower is better</small>","font":{"size":13}},number={"suffix":"%","font":{"size":28,"color":color}},gauge={"axis":{"range":[0,100]},"bar":{"color":color},"steps":[{"range":[0,15],"color":"#e8f5e9"},{"range":[15,40],"color":"#e3f2fd"},{"range":[40,70],"color":"#fff8e1"},{"range":[70,100],"color":"#ffebee"}]}})
     fig.update_layout(height=220,margin=dict(l=15,r=15,t=55,b=10),paper_bgcolor="rgba(0,0,0,0)"); return fig
 
 def sim_bar(papers):
@@ -240,7 +238,7 @@ DOMAIN_LIST = [
     "── 🎭 Arts & Humanities ──",
     "History","Philosophy","Sociology","Political Science","Anthropology",
     "Geography","Cultural Studies","Women Studies","Diaspora Literature",
-    "Library Science","Fine Arts","Music","Journalism","Communication",
+    "Library Science","Fine Arts","Music","Journalism",
     "── 🔬 Pure Science ──",
     "Physics","Chemistry","Mathematics","Statistics","Botany","Zoology",
     "Microbiology","Biochemistry","Environmental Science","Geology","Astronomy",
@@ -269,84 +267,79 @@ DOMAIN_LIST = [
 def make_result(source, title, authors, year, abstract, pdf_url, page_url,
                 doi=None, doc_type="Article", country="Global", pages=None):
     return {
-        "source":   source,
-        "title":    (title or "").strip(),
-        "authors":  authors or "N/A",
-        "year":     str(year or "N/A"),
-        "abstract": ((abstract or "No abstract available.")[:350]+"…"),
-        "pdf_url":  pdf_url,
-        "page_url": page_url or "",
-        "free":     pdf_url is not None,
-        "doi":      doi,
-        "type":     doc_type,
-        "country":  country,
-        "pages":    pages,
+        "source":source,"title":(title or "").strip(),"authors":authors or "N/A",
+        "year":str(year or "N/A"),"abstract":((abstract or "No abstract available.")[:350]+"…"),
+        "pdf_url":pdf_url,"page_url":page_url or "","free":pdf_url is not None,
+        "doi":doi,"type":doc_type,"country":country,"pages":pages,
     }
 
 
 def get_unpaywall_pdf(doi):
     if not doi: return None
     try:
-        r = requests.get(f"https://api.unpaywall.org/v2/{doi}?email={UNPAYWALL_EMAIL}",
-                         headers=DL_HEADERS, timeout=10)
-        if r.status_code == 200:
-            best = r.json().get("best_oa_location")
+        r=requests.get(f"https://api.unpaywall.org/v2/{doi}?email={UNPAYWALL_EMAIL}",headers=DL_HEADERS,timeout=10)
+        if r.status_code==200:
+            best=r.json().get("best_oa_location")
             if best: return best.get("url_for_pdf") or best.get("url")
     except: pass
     return None
 
 
-def download_paper(pdf_url, title, source, folder):
+def fetch_pdf_bytes(pdf_url):
+    """
+    Fetch PDF into memory — works on both desktop and mobile.
+    Returns (bytes, "ok") on success or (None, error_message) on failure.
+    """
     try:
-        safe     = re.sub(r'[\\/*?:"<>|]', "", title)[:80].strip()
-        src_safe = re.sub(r'[🇮🇳🌍🇪🇺🇬🇧🇫🇷🇦🇺]', "", source).strip()
-        filename = f"[{src_safe}] {safe}.pdf"
-        filepath = folder / filename
-        if filepath.exists(): return True, str(filepath)
         resp = requests.get(pdf_url, headers=DL_HEADERS, timeout=60,
                             stream=True, allow_redirects=True)
         if resp.status_code != 200:
-            return False, f"HTTP {resp.status_code}"
+            return None, f"HTTP {resp.status_code}"
         ct = resp.headers.get("content-type","").lower()
         if "html" in ct and "pdf" not in ct:
-            return False, "Paywalled — server returned HTML login page"
-        with open(filepath,"wb") as f:
-            for chunk in resp.iter_content(8192): f.write(chunk)
-        if filepath.stat().st_size < 10000:
-            filepath.unlink(); return False, "File too small — not a valid PDF"
-        with open(filepath,"rb") as f:
-            if f.read(5) != b"%PDF-":
-                filepath.unlink(); return False, "Invalid PDF — may be paywalled"
-        return True, str(filepath)
+            return None, "Paywalled — server returned login page"
+        data = resp.content
+        if len(data) < 10000:
+            return None, "File too small — not a valid PDF"
+        if data[:5] != b"%PDF-":
+            return None, "Not a valid PDF — may be paywalled"
+        return data, "ok"
     except Exception as e:
-        return False, str(e)
+        return None, str(e)
 
 
-# ═══════════════════════════════════════════════════════
-# JOURNAL ARTICLE SOURCES
-# ═══════════════════════════════════════════════════════
-
-def search_arxiv(q, n=5):
-    results = []
+def save_to_folder(pdf_bytes, title, source, folder):
+    """Also save to server folder for desktop users."""
     try:
-        resp = requests.get(f"http://export.arxiv.org/api/query?search_query=all:{quote(q)}&max_results={n}&sortBy=relevance", headers=DL_HEADERS, timeout=15)
-        root = ET.fromstring(resp.content); ns={"atom":"http://www.w3.org/2005/Atom"}
+        safe     = re.sub(r'[\\/*?:"<>|🇮🇳🌍🇪🇺🇬🇧🇫🇷🇸🇪🇦🇺]',"",title)[:70].strip()
+        src_safe = re.sub(r'[\\/*?:"<>|🇮🇳🌍🇪🇺🇬🇧🇫🇷🇸🇪🇦🇺]',"",source).strip()
+        filepath = folder / f"[{src_safe}] {safe}.pdf"
+        if not filepath.exists():
+            with open(filepath,"wb") as f: f.write(pdf_bytes)
+        return str(filepath)
+    except: return ""
+
+
+# ═══════════════════════════════════════════════════════
+# JOURNAL SOURCES
+# ═══════════════════════════════════════════════════════
+
+def search_arxiv(q,n=5):
+    results=[]
+    try:
+        resp=requests.get(f"http://export.arxiv.org/api/query?search_query=all:{quote(q)}&max_results={n}&sortBy=relevance",headers=DL_HEADERS,timeout=15)
+        root=ET.fromstring(resp.content); ns={"atom":"http://www.w3.org/2005/Atom"}
         for e in root.findall("atom:entry",ns):
             pid=e.find("atom:id",ns).text.strip(); aid=pid.split("/abs/")[-1]
             auths=[a.find("atom:name",ns).text for a in e.findall("atom:author",ns)]
-            results.append(make_result("arXiv",e.find("atom:title",ns).text.strip().replace("\n"," "),
-                ", ".join(auths[:3])+(" et al." if len(auths)>3 else ""),
-                e.find("atom:published",ns).text[:4],e.find("atom:summary",ns).text.strip(),
-                f"https://arxiv.org/pdf/{aid}.pdf",pid,doc_type="Preprint"))
+            results.append(make_result("arXiv",e.find("atom:title",ns).text.strip().replace("\n"," "),", ".join(auths[:3])+(" et al." if len(auths)>3 else ""),e.find("atom:published",ns).text[:4],e.find("atom:summary",ns).text.strip(),f"https://arxiv.org/pdf/{aid}.pdf",pid,doc_type="Preprint"))
     except: pass
     return results
 
-def search_semantic_scholar(q, n=5):
-    results = []
+def search_semantic_scholar(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.semanticscholar.org/graph/v1/paper/search",
-                            params={"query":q,"limit":n,"fields":"title,authors,year,abstract,openAccessPdf,externalIds,url"},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.semanticscholar.org/graph/v1/paper/search",params={"query":q,"limit":n,"fields":"title,authors,year,abstract,openAccessPdf,externalIds,url"},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("data",[]):
             oa=p.get("openAccessPdf"); pdf=oa.get("url") if oa else None
             doi=p.get("externalIds",{}).get("DOI"); aut=[a["name"] for a in p.get("authors",[])]
@@ -354,45 +347,32 @@ def search_semantic_scholar(q, n=5):
     except: pass
     return results
 
-def search_ieee(q, n=5):
-    results = []
+def search_ieee(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://ieeexplore.ieee.org/rest/search",
-                            params={"queryText":q,"newsearch":"true","pageNumber":1,"rowsPerPage":n},
-                            headers={**DL_HEADERS,"Referer":"https://ieeexplore.ieee.org"}, timeout=15)
+        resp=requests.get("https://ieeexplore.ieee.org/rest/search",params={"queryText":q,"newsearch":"true","pageNumber":1,"rowsPerPage":n},headers={**DL_HEADERS,"Referer":"https://ieeexplore.ieee.org"},timeout=15)
         for p in resp.json().get("records",[]):
             doi=p.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
             aut=[a.get("preferredName","") for a in p.get("authors",[])]
-            results.append(make_result("IEEE Xplore",p.get("articleTitle",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                p.get("publicationYear"),p.get("abstract"),pdf,
-                f"https://ieeexplore.ieee.org/document/{p.get('articleNumber','')}",doi))
+            results.append(make_result("IEEE Xplore",p.get("articleTitle",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publicationYear"),p.get("abstract"),pdf,f"https://ieeexplore.ieee.org/document/{p.get('articleNumber','')}",doi))
     except: pass
     return results
 
-def search_springer(q, n=5):
-    results = []
+def search_springer(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.springernature.com/meta/v2/json",
-                            params={"q":q,"p":n,"api_key":"b374210d2db59a18aa3bfc1eac3e1876"},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.springernature.com/meta/v2/json",params={"q":q,"p":n,"api_key":"b374210d2db59a18aa3bfc1eac3e1876"},headers=DL_HEADERS,timeout=15)
         for r in resp.json().get("records",[]):
             doi=r.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
             aut=[c.get("creator","") for c in r.get("creators",[])]
-            results.append(make_result("Springer",r.get("title",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                r.get("publicationDate","")[:4],r.get("abstract"),pdf,
-                f"https://doi.org/{doi}" if doi else "",doi,
-                doc_type=r.get("contentType","Article")))
+            results.append(make_result("Springer",r.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),r.get("publicationDate","")[:4],r.get("abstract"),pdf,f"https://doi.org/{doi}" if doi else "",doi,doc_type=r.get("contentType","Article")))
     except: pass
     return results
 
-def search_openalex(q, n=5):
-    results = []
+def search_openalex(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.openalex.org/works",
-                            params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.openalex.org/works",params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("results",[]):
             oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
             doi=(p.get("doi","").replace("https://doi.org/","")) if p.get("doi") else None
@@ -405,8 +385,8 @@ def search_openalex(q, n=5):
     except: pass
     return results
 
-def search_pubmed(q, n=5):
-    results = []
+def search_pubmed(q,n=5):
+    results=[]
     try:
         s=requests.get("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi",params={"db":"pmc","term":q,"retmax":n,"retmode":"json"},headers=DL_HEADERS,timeout=15)
         ids=s.json().get("esearchresult",{}).get("idlist",[])
@@ -421,8 +401,8 @@ def search_pubmed(q, n=5):
     except: pass
     return results
 
-def search_doaj(q, n=5):
-    results = []
+def search_doaj(q,n=5):
+    results=[]
     try:
         resp=requests.get("https://doaj.org/api/search/articles",params={"q":q,"pageSize":n},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("results",[]):
@@ -434,8 +414,8 @@ def search_doaj(q, n=5):
     except: pass
     return results
 
-def search_core(q, n=5):
-    results = []
+def search_core(q,n=5):
+    results=[]
     try:
         resp=requests.get("https://api.core.ac.uk/v3/search/works",params={"q":q,"limit":n},headers={**DL_HEADERS,"Authorization":"Bearer "},timeout=15)
         for p in resp.json().get("results",[]):
@@ -445,8 +425,8 @@ def search_core(q, n=5):
     except: pass
     return results
 
-def search_crossref(q, n=5):
-    results = []
+def search_crossref(q,n=5):
+    results=[]
     try:
         resp=requests.get("https://api.crossref.org/works",params={"query.title":q,"rows":n,"mailto":UNPAYWALL_EMAIL},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("message",{}).get("items",[]):
@@ -460,471 +440,322 @@ def search_crossref(q, n=5):
 
 
 # ═══════════════════════════════════════════════════════
-# 🎓 PhD THESIS SOURCES (Full 150-400 page documents)
+# PhD THESIS SOURCES
 # ═══════════════════════════════════════════════════════
 
-def thesis_shodhganga(q, n=5):
-    """Shodhganga — INFLIBNET Indian PhD Thesis Repository"""
-    results = []
-    # Method 1: OAI-PMH
+# ═══════════════════════════════════════════════════════
+# 🇮🇳 INDIAN JOURNAL SOURCES
+# ═══════════════════════════════════════════════════════
+
+def search_openalex_india(q,n=5):
+    """OpenAlex filtered to Indian institutions"""
+    results=[]
     try:
-        resp = requests.get(
-            f"http://shodhganga.inflibnet.ac.in:8080/jspui/oai/request",
-            params={"verb":"Search","query":q,"metadataPrefix":"oai_dc","rows":n},
-            headers=DL_HEADERS, timeout=15)
-        root = ET.fromstring(resp.content)
-        ns   = {"oai":"http://www.openarchives.org/OAI/2.0/","dc":"http://purl.org/dc/elements/1.1/"}
-        for record in root.findall(".//oai:record",ns):
-            meta  = record.find(".//oai:metadata",ns)
-            if meta is None: continue
-            t     = meta.find(".//dc:title",ns)
-            auth  = meta.find(".//dc:creator",ns)
-            date  = meta.find(".//dc:date",ns)
-            desc  = meta.find(".//dc:description",ns)
-            ident = meta.find(".//dc:identifier",ns)
-            title_  = t.text.strip() if t is not None else ""
-            page_url= ident.text.strip() if ident is not None else ""
-            pdf_url = None
-            if page_url and "handle" in page_url:
-                hid = page_url.split("handle/")[-1]
-                pdf_url = f"https://shodhganga.inflibnet.ac.in/bitstream/handle/{hid}/thesis.pdf?sequence=1&isAllowed=y"
-            if title_:
-                results.append(make_result("Shodhganga 🇮🇳",title_,
-                    auth.text if auth is not None else "Indian PhD Scholar",
-                    date.text[:4] if date is not None else "N/A",
-                    desc.text[:300] if desc is not None else "Indian PhD Thesis — Full Document (150-400 pages)",
-                    pdf_url, page_url, doc_type="PhD Thesis 🎓", country="India",pages="150-400"))
+        resp=requests.get("https://api.openalex.org/works",params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,"filter":"institutions.country_code:IN"},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("results",[]):
+            oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
+            doi=(p.get("doi","").replace("https://doi.org/","")) if p.get("doi") else None
+            aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
+            ab_inv=p.get("abstract_inverted_index"); abstract=""
+            if ab_inv:
+                words={v:k for k,vals in ab_inv.items() for v in vals}
+                abstract=" ".join(words[i] for i in sorted(words))
+            results.append(make_result("OpenAlex India 🇮🇳",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publication_year"),abstract,pdf,p.get("id",""),doi,doc_type="Indian Research",country="India"))
     except: pass
+    return results
 
-    # Method 2: OpenAlex India filter as fallback
-    if not results:
-        try:
-            resp = requests.get("https://api.openalex.org/works",
-                                params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,
-                                        "filter":"institutions.country_code:IN,type:dissertation"},
-                                headers=DL_HEADERS, timeout=15)
-            for p in resp.json().get("results",[]):
-                oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
-                aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
-                ab_inv=p.get("abstract_inverted_index"); abstract=""
-                if ab_inv:
-                    words={v:k for k,vals in ab_inv.items() for v in vals}
-                    abstract=" ".join(words[i] for i in sorted(words))
-                results.append(make_result("Shodhganga 🇮🇳",p.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("publication_year"),abstract or "Indian PhD Thesis",
-                    pdf,p.get("id",""),None,
-                    doc_type="PhD Thesis 🎓",country="India",pages="150-400"))
-        except: pass
-    return results[:n]
-
-
-def thesis_ndltd(q, n=5):
-    """NDLTD — Global Networked Digital Library of Theses & Dissertations"""
-    results = []
+def search_semantic_india(q,n=5):
+    """Semantic Scholar filtered to Indian papers"""
+    results=[]
     try:
-        resp = requests.get("https://api.semanticscholar.org/graph/v1/paper/search",
-                            params={"query":f"{q} thesis dissertation","limit":n,
-                                    "fields":"title,authors,year,abstract,openAccessPdf,externalIds,url"},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.semanticscholar.org/graph/v1/paper/search",params={"query":f"{q} India","limit":n,"fields":"title,authors,year,abstract,openAccessPdf,externalIds,url"},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("data",[]):
             oa=p.get("openAccessPdf"); pdf=oa.get("url") if oa else None
-            doi=p.get("externalIds",{}).get("DOI")
-            aut=[a["name"] for a in p.get("authors",[])]
-            ab=(p.get("abstract") or "")
-            if any(w in ab.lower() for w in ["thesis","dissertation","phd","doctoral"]) or any(w in (p.get("title","")).lower() for w in ["thesis","dissertation","phd"]):
-                results.append(make_result("NDLTD 🌍",p.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("year"),ab,pdf,p.get("url",""),doi,
-                    doc_type="PhD Thesis 🎓",pages="150-400"))
+            doi=p.get("externalIds",{}).get("DOI"); aut=[a["name"] for a in p.get("authors",[])]
+            results.append(make_result("Semantic India 🇮🇳",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("year"),p.get("abstract"),pdf,p.get("url",""),doi,doc_type="Indian Research",country="India"))
     except: pass
+    return results
 
-    # Fallback: OpenAlex dissertation filter
+def search_nopr_niscair(q,n=5):
+    """NISCAIR/NOPR — CSIR India journals"""
+    results=[]
+    try:
+        resp=requests.get("http://nopr.niscair.res.in/rest/items/find-by-metadata-field",json={"key":"dc.title","value":q,"language":"en_US"},headers={**DL_HEADERS,"Content-Type":"application/json"},timeout=15)
+        for item in resp.json()[:n]:
+            item_id=item.get("id",""); title_=item.get("name",""); handle=item.get("handle","")
+            page_url=f"http://nopr.niscair.res.in/handle/{handle}"; pdf_url=None
+            try:
+                bs=requests.get(f"http://nopr.niscair.res.in/rest/items/{item_id}/bitstreams",headers=DL_HEADERS,timeout=10)
+                for b in bs.json():
+                    if b.get("mimeType","")=="application/pdf":
+                        pdf_url=f"http://nopr.niscair.res.in/rest/bitstreams/{b['id']}/retrieve"; break
+            except: pass
+            if title_:
+                results.append(make_result("NISCAIR/NOPR 🇮🇳",title_,"CSIR Researcher","N/A","CSIR Journal Article — NISCAIR Open Access",pdf_url,page_url,doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+def search_current_science(q,n=5):
+    """Current Science — IISc Bangalore (reputed Indian journal)"""
+    results=[]
+    try:
+        resp=requests.get(f"https://www.currentscience.ac.in/php/search.php",params={"q":q,"type":"title"},headers=DL_HEADERS,timeout=15)
+        rows=re.findall(r'<tr[^>]*>(.*?)</tr>',resp.text,re.DOTALL)
+        for row in rows[:n]:
+            t=re.search(r'<b>(.*?)</b>',row); href=re.search(r'href="([^"]+\.pdf)"',row)
+            auth=re.search(r'<i>(.*?)</i>',row); yr=re.search(r'(\d{4})',row)
+            if t and href:
+                pdf=href.group(1) if href.group(1).startswith("http") else f"https://www.currentscience.ac.in{href.group(1)}"
+                results.append(make_result("Current Science 🇮🇳",re.sub(r'<[^>]+',"",t.group(1)).strip(),re.sub(r'<[^>]+',"",auth.group(1)).strip() if auth else "N/A",yr.group(1) if yr else "N/A","Current Science — IISc Bangalore (Reputed Indian Journal)",pdf,"https://www.currentscience.ac.in",doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+def search_doaj_india(q,n=5):
+    """DOAJ filtered to Indian journals"""
+    results=[]
+    try:
+        resp=requests.get("https://doaj.org/api/search/articles",params={"q":f"{q} India","pageSize":n},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("results",[]):
+            bib=p.get("bibjson",{}); links=bib.get("link",[])
+            pdf=next((l["url"] for l in links if l.get("type")=="fulltext"),None)
+            doi=next((i["id"] for i in bib.get("identifier",[]) if i.get("type")=="doi"),None)
+            aut=[a.get("name","") for a in bib.get("author",[])]
+            results.append(make_result("DOAJ India 🇮🇳",bib.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),bib.get("year"),bib.get("abstract"),pdf,f"https://doaj.org/article/{p.get('id','')}",doi,doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+def search_irjet(q,n=5):
+    """IRJET — International Research Journal of Engineering and Technology"""
+    results=[]
+    try:
+        resp=requests.get(f"https://www.irjet.net/search-result.php",params={"search":q},headers=DL_HEADERS,timeout=15)
+        items=re.findall(r'href="(https://www\.irjet\.net/archives/[^"]+\.pdf)"[^>]*>(.*?)</a>',resp.text,re.DOTALL)
+        for pdf_url,t in items[:n]:
+            t=re.sub(r'<[^>]+',"",t).strip()
+            if t:
+                results.append(make_result("IRJET 🇮🇳",t,"Indian Researcher","N/A","International Research Journal of Engineering and Technology — Free PDF",pdf_url,"https://www.irjet.net",doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+def search_ijser(q,n=5):
+    """IJSER — International Journal of Scientific and Engineering Research"""
+    results=[]
+    try:
+        resp=requests.get(f"https://www.ijser.org/research-paper-search.aspx",params={"title":q},headers=DL_HEADERS,timeout=15)
+        pdfs=re.findall(r'href="(/paper/[^"]+\.pdf)"',resp.text)
+        titles_=re.findall(r'<h\d[^>]*>(.*?)</h\d>',resp.text,re.DOTALL)
+        for i,pdf_path in enumerate(pdfs[:n]):
+            t=re.sub(r'<[^>]+',"",titles_[i]).strip() if i<len(titles_) else f"IJSER Paper {i+1}"
+            results.append(make_result("IJSER 🇮🇳",t,"Indian Researcher","N/A","International Journal of Scientific & Engineering Research — Free PDF",f"https://www.ijser.org{pdf_path}","https://www.ijser.org",doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+def search_jetir(q,n=5):
+    """JETIR — Journal of Emerging Technologies and Innovative Research"""
+    results=[]
+    try:
+        resp=requests.get(f"https://www.jetir.org/search.php",params={"q":q},headers={**DL_HEADERS,"Referer":"https://www.jetir.org"},timeout=15)
+        pdfs=re.findall(r'href="(https://www\.jetir\.org/papers/[^"]+\.pdf)"',resp.text)
+        titles_=re.findall(r'<b>(.*?)</b>',resp.text)
+        for i,pdf_url in enumerate(pdfs[:n]):
+            t=re.sub(r'<[^>]+',"",titles_[i]).strip() if i<len(titles_) else f"JETIR Paper {i+1}"
+            results.append(make_result("JETIR 🇮🇳",t,"Indian Researcher","N/A","Journal of Emerging Technologies and Innovative Research — Free PDF",pdf_url,"https://www.jetir.org",doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+def search_ijcrt(q,n=5):
+    """IJCRT — International Journal of Creative Research Thoughts"""
+    results=[]
+    try:
+        resp=requests.get(f"https://ijcrt.org/search.php",params={"search":q},headers={**DL_HEADERS,"Referer":"https://ijcrt.org"},timeout=15)
+        pdfs=re.findall(r'href="(https://ijcrt\.org/papers/[^"]+\.pdf)"',resp.text)
+        titles_=re.findall(r'<font[^>]*color="#0000FF"[^>]*><b>(.*?)</b></font>',resp.text,re.DOTALL)
+        for i,pdf_url in enumerate(pdfs[:n]):
+            t=re.sub(r'<[^>]+',"",titles_[i]).strip() if i<len(titles_) else f"IJCRT Paper {i+1}"
+            results.append(make_result("IJCRT 🇮🇳",t,"Indian Researcher","N/A","International Journal of Creative Research Thoughts — Free PDF",pdf_url,"https://ijcrt.org",doc_type="Journal Article",country="India"))
+    except: pass
+    return results
+
+
+def thesis_shodhganga(q,n=5):
+    results=[]
+    try:
+        resp=requests.get("http://shodhganga.inflibnet.ac.in:8080/jspui/oai/request",params={"verb":"Search","query":q,"metadataPrefix":"oai_dc","rows":n},headers=DL_HEADERS,timeout=15)
+        root=ET.fromstring(resp.content); ns={"oai":"http://www.openarchives.org/OAI/2.0/","dc":"http://purl.org/dc/elements/1.1/"}
+        for record in root.findall(".//oai:record",ns):
+            meta=record.find(".//oai:metadata",ns)
+            if meta is None: continue
+            t=meta.find(".//dc:title",ns); auth=meta.find(".//dc:creator",ns)
+            date=meta.find(".//dc:date",ns); desc=meta.find(".//dc:description",ns); ident=meta.find(".//dc:identifier",ns)
+            title_=t.text.strip() if t is not None else ""; page_url=ident.text.strip() if ident is not None else ""
+            pdf_url=None
+            if page_url and "handle" in page_url:
+                hid=page_url.split("handle/")[-1]
+                pdf_url=f"https://shodhganga.inflibnet.ac.in/bitstream/handle/{hid}/thesis.pdf?sequence=1&isAllowed=y"
+            if title_:
+                results.append(make_result("Shodhganga 🇮🇳",title_,auth.text if auth is not None else "Indian PhD Scholar",date.text[:4] if date is not None else "N/A",desc.text[:300] if desc is not None else "Indian PhD Thesis",pdf_url,page_url,doc_type="PhD Thesis 🎓",country="India",pages="150-400"))
+    except: pass
     if not results:
         try:
-            resp = requests.get("https://api.openalex.org/works",
-                                params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,
-                                        "filter":"type:dissertation"},
-                                headers=DL_HEADERS, timeout=15)
+            resp=requests.get("https://api.openalex.org/works",params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,"filter":"institutions.country_code:IN,type:dissertation"},headers=DL_HEADERS,timeout=15)
             for p in resp.json().get("results",[]):
                 oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
                 aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
                 ab_inv=p.get("abstract_inverted_index"); abstract=""
                 if ab_inv:
-                    words={v:k for k,vals in ab_inv.items() for v in vals}
-                    abstract=" ".join(words[i] for i in sorted(words))
-                results.append(make_result("NDLTD 🌍",p.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("publication_year"),abstract,pdf,p.get("id",""),None,
-                    doc_type="PhD Thesis 🎓",pages="150-400"))
+                    words={v:k for k,vals in ab_inv.items() for v in vals}; abstract=" ".join(words[i] for i in sorted(words))
+                results.append(make_result("Shodhganga 🇮🇳",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publication_year"),abstract or "Indian PhD Thesis",pdf,p.get("id",""),None,doc_type="PhD Thesis 🎓",country="India",pages="150-400"))
         except: pass
     return results[:n]
 
-
-def thesis_zenodo(q, n=5):
-    """Zenodo — CERN Open Repository (thesis type filter)"""
-    results = []
+def thesis_ndltd(q,n=5):
+    results=[]
     try:
-        # Search specifically for theses
-        resp = requests.get("https://zenodo.org/api/records",
-                            params={"q":q,"size":n,"sort":"mostrecent",
-                                    "type":"publication","subtype":"thesis"},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.openalex.org/works",params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,"filter":"type:dissertation"},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("results",[]):
+            oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
+            aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
+            ab_inv=p.get("abstract_inverted_index"); abstract=""
+            if ab_inv:
+                words={v:k for k,vals in ab_inv.items() for v in vals}; abstract=" ".join(words[i] for i in sorted(words))
+            results.append(make_result("NDLTD Global 🌍",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publication_year"),abstract,pdf,p.get("id",""),None,doc_type="PhD Thesis 🎓",pages="150-400"))
+    except: pass
+    return results[:n]
+
+def thesis_zenodo(q,n=5):
+    results=[]
+    try:
+        resp=requests.get("https://zenodo.org/api/records",params={"q":q,"size":n,"sort":"mostrecent","type":"publication","subtype":"thesis"},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("hits",{}).get("hits",[]):
-            meta  = p.get("metadata",{}); files = p.get("files",[])
-            pdf   = next((f["links"]["self"] for f in files if f.get("type")=="pdf"), None)
-            aut   = [a.get("name","") for a in meta.get("creators",[])]
-            doi   = meta.get("doi","")
-            results.append(make_result("Zenodo 🎓",meta.get("title",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                str(meta.get("publication_date",""))[:4],
-                meta.get("description","")[:300],
-                pdf, p.get("links",{}).get("html",""), doi,
-                doc_type="PhD Thesis 🎓", pages="100-400"))
+            meta=p.get("metadata",{}); files=p.get("files",[])
+            pdf=next((f["links"]["self"] for f in files if f.get("type")=="pdf"),None)
+            aut=[a.get("name","") for a in meta.get("creators",[])]
+            results.append(make_result("Zenodo Theses",meta.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),str(meta.get("publication_date",""))[:4],meta.get("description","")[:300],pdf,p.get("links",{}).get("html",""),meta.get("doi",""),doc_type="PhD Thesis 🎓",pages="100-400"))
     except: pass
     return results[:n]
 
-
-def thesis_hal(q, n=5):
-    """HAL — French Open Scientific Archive (THESE type)"""
-    results = []
+def thesis_hal(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.archives-ouvertes.fr/search/",
-                            params={"q":q,"rows":n,
-                                    "fl":"title_s,authFullName_s,producedDate_s,abstract_s,fileMain_s,uri_s,docType_s",
-                                    "fq":"docType_s:THESE"},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.archives-ouvertes.fr/search/",params={"q":q,"rows":n,"fl":"title_s,authFullName_s,producedDate_s,abstract_s,fileMain_s,uri_s","fq":"docType_s:THESE"},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("response",{}).get("docs",[]):
-            pdf = p.get("fileMain_s")
-            aut = p.get("authFullName_s",[])
-            results.append(make_result("HAL Theses 🇫🇷",
-                p.get("title_s",[""])[0] if p.get("title_s") else "",
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                str(p.get("producedDate_s",""))[:4],
-                p.get("abstract_s",[""])[0] if p.get("abstract_s") else "French PhD Thesis",
-                pdf, p.get("uri_s",""),
-                doc_type="PhD Thesis 🎓", country="France", pages="150-350"))
+            pdf=p.get("fileMain_s"); aut=p.get("authFullName_s",[])
+            results.append(make_result("HAL Theses 🇫🇷",p.get("title_s",[""])[0] if p.get("title_s") else "",", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),str(p.get("producedDate_s",""))[:4],p.get("abstract_s",[""])[0] if p.get("abstract_s") else "French PhD Thesis",pdf,p.get("uri_s",""),doc_type="PhD Thesis 🎓",country="France",pages="150-350"))
     except: pass
     return results[:n]
 
-
-def thesis_dart_europe(q, n=5):
-    """DART-Europe — 700+ European universities PhD theses"""
-    results = []
+def thesis_dart_europe(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://www.dart-europe.org/basic-search.php",
-                            params={"query":q,"submit":"Search"},
-                            headers=DL_HEADERS, timeout=15)
-        # Extract thesis records from HTML
-        blocks = re.findall(
-            r'<div class="result-item[^"]*">(.*?)</div>\s*</div>',
-            resp.text, re.DOTALL)
-        for block in blocks[:n]:
-            t    = re.search(r'<a[^>]+class="[^"]*title[^"]*"[^>]*>(.*?)</a>', block, re.DOTALL)
-            href = re.search(r'href="(full\.php\?[^"]+)"', block)
-            auth = re.search(r'(?:Author|Auteur)[:\s]+(.*?)(?:<|\n)', block)
-            yr   = re.search(r'(\d{4})', block)
-            univ = re.search(r'(?:University|Université|Universit)[:\s]+(.*?)(?:<|\n)', block)
-            page_url = f"https://www.dart-europe.org/{href.group(1)}" if href else ""
-            title_   = re.sub(r'<[^>]+',"",t.group(1)).strip() if t else ""
-            if title_:
-                results.append(make_result("DART-Europe 🇪🇺", title_,
-                    re.sub(r'<[^>]+',"",auth.group(1)).strip() if auth else "European PhD Scholar",
-                    yr.group(1) if yr else "N/A",
-                    f"European PhD Thesis — {re.sub(r'<[^>]+','',univ.group(1)).strip() if univ else 'European University'}",
-                    None, page_url,
-                    doc_type="PhD Thesis 🎓", pages="150-400"))
-    except: pass
-
-    # Fallback: CrossRef dissertation type
-    if not results:
-        try:
-            resp = requests.get("https://api.crossref.org/works",
-                                params={"query.title":q,"rows":n,"mailto":UNPAYWALL_EMAIL,
-                                        "filter":"type:dissertation"},
-                                headers=DL_HEADERS, timeout=15)
-            for p in resp.json().get("message",{}).get("items",[]):
-                doi=p.get("DOI",""); pdf=get_unpaywall_pdf(doi) if doi else None
-                aut=[f"{a.get('given','')} {a.get('family','')}".strip() for a in p.get("author",[])]
-                pub=p.get("published",{}).get("date-parts",[[""]])[0]
-                results.append(make_result("DART-Europe 🇪🇺",
-                    p.get("title",[""])[0] if p.get("title") else "",
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    pub[0] if pub else "N/A","PhD Dissertation",
-                    pdf, f"https://doi.org/{doi}" if doi else "", doi,
-                    doc_type="PhD Thesis 🎓", pages="150-400"))
-        except: pass
-    return results[:n]
-
-
-def thesis_ethos(q, n=5):
-    """EThOS — British Library UK PhD Theses"""
-    results = []
-    try:
-        resp = requests.get(
-            f"https://ethos.bl.uk/SearchResults.do",
-            params={"query":q,"orderDir":"desc","orderField":"date"},
-            headers=DL_HEADERS, timeout=15)
-        items = re.findall(
-            r'<div class="result-item[^"]*">(.*?)</div>\s*(?=<div class="result-item|</div>)',
-            resp.text, re.DOTALL)
-        for item in items[:n]:
-            t    = re.search(r'<span[^>]*class="[^"]*title[^"]*"[^>]*>(.*?)</span>', item, re.DOTALL)
-            href = re.search(r'href="(/OrderDetails\.do\?[^"]+)"', item)
-            auth = re.search(r'<span[^>]*class="[^"]*author[^"]*"[^>]*>(.*?)</span>', item, re.DOTALL)
-            yr   = re.search(r'(\d{4})', item)
-            univ = re.search(r'<span[^>]*class="[^"]*institution[^"]*"[^>]*>(.*?)</span>', item, re.DOTALL)
-            page_url = f"https://ethos.bl.uk{href.group(1)}" if href else ""
-            title_   = re.sub(r'<[^>]+',"",t.group(1)).strip() if t else ""
-            if title_:
-                results.append(make_result("EThOS 🇬🇧", title_,
-                    re.sub(r'<[^>]+',"",auth.group(1)).strip() if auth else "UK PhD Scholar",
-                    yr.group(1) if yr else "N/A",
-                    f"UK PhD Thesis — British Library EThOS — {re.sub(r'<[^>]+','',univ.group(1)).strip() if univ else 'UK University'}",
-                    None, page_url,
-                    doc_type="PhD Thesis 🎓", country="UK", pages="150-400"))
-    except: pass
-
-    # Fallback using Semantic Scholar with UK filter
-    if not results:
-        try:
-            resp = requests.get("https://api.semanticscholar.org/graph/v1/paper/search",
-                                params={"query":f"{q} doctoral thesis UK","limit":n,
-                                        "fields":"title,authors,year,abstract,openAccessPdf,url"},
-                                headers=DL_HEADERS, timeout=15)
-            for p in resp.json().get("data",[]):
-                oa=p.get("openAccessPdf"); pdf=oa.get("url") if oa else None
-                aut=[a["name"] for a in p.get("authors",[])]
-                results.append(make_result("EThOS 🇬🇧",p.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("year"),"UK PhD Thesis",pdf,p.get("url",""),None,
-                    doc_type="PhD Thesis 🎓",country="UK",pages="150-400"))
-        except: pass
-    return results[:n]
-
-
-def thesis_oatd(q, n=5):
-    """OATD — Open Access Theses and Dissertations (Worldwide)"""
-    results = []
-    try:
-        resp = requests.get(f"https://oatd.org/oatd/search",
-                            params={"q":q,"rows":n,"start":0},
-                            headers=DL_HEADERS, timeout=15)
-        # Extract from HTML
-        titles_  = re.findall(r'<p class="title">(.*?)</p>', resp.text, re.DOTALL)
-        authors_ = re.findall(r'<p class="author">(.*?)</p>', resp.text, re.DOTALL)
-        dates_   = re.findall(r'<p class="date">(.*?)</p>', resp.text, re.DOTALL)
-        hrefs_   = re.findall(r'href="(/oatd/record\?record=[^"]+)"', resp.text)
-        for i in range(min(n, len(titles_))):
-            t    = re.sub(r'<[^>]+',"",titles_[i]).strip()
-            auth = re.sub(r'<[^>]+',"",authors_[i]).strip() if i < len(authors_) else "N/A"
-            yr   = re.sub(r'<[^>]+',"",dates_[i]).strip()[:4] if i < len(dates_) else "N/A"
-            page = f"https://oatd.org{hrefs_[i]}" if i < len(hrefs_) else ""
-
-            # Try to get PDF from the record page
-            pdf_url = None
-            if page:
-                try:
-                    r2 = requests.get(page, headers=DL_HEADERS, timeout=10)
-                    pdf_links = re.findall(r'href="([^"]+\.pdf[^"]*)"', r2.text)
-                    if pdf_links: pdf_url = pdf_links[0]
-                except: pass
-
-            if t:
-                results.append(make_result("OATD 🌐", t, auth, yr,
-                    "Open Access PhD Thesis/Dissertation — Worldwide",
-                    pdf_url, page,
-                    doc_type="PhD Thesis 🎓", pages="150-400"))
+        resp=requests.get("https://api.crossref.org/works",params={"query.title":q,"rows":n,"mailto":UNPAYWALL_EMAIL,"filter":"type:dissertation"},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("message",{}).get("items",[]):
+            doi=p.get("DOI",""); pdf=get_unpaywall_pdf(doi) if doi else None
+            aut=[f"{a.get('given','')} {a.get('family','')}".strip() for a in p.get("author",[])]
+            pub=p.get("published",{}).get("date-parts",[[""]])[0]
+            results.append(make_result("DART-Europe 🇪🇺",p.get("title",[""])[0] if p.get("title") else "",", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),pub[0] if pub else "N/A","PhD Dissertation",pdf,f"https://doi.org/{doi}" if doi else "",doi,doc_type="PhD Thesis 🎓",pages="150-400"))
     except: pass
     return results[:n]
 
-
-def thesis_springer(q, n=5):
-    """Springer Theses — Recognized doctoral research (full books)"""
-    results = []
+def thesis_ethos(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.springernature.com/meta/v2/json",
-                            params={"q":f'{q} series:"Springer Theses"',"p":n,
-                                    "api_key":"b374210d2db59a18aa3bfc1eac3e1876"},
-                            headers=DL_HEADERS, timeout=15)
-        for r in resp.json().get("records",[]):
-            doi=r.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
-            aut=[c.get("creator","") for c in r.get("creators",[])]
-            results.append(make_result("Springer Theses",r.get("title",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                r.get("publicationDate","")[:4],
-                r.get("abstract","") or "Springer Theses — Recognized PhD Research (150-300 pages)",
-                pdf, f"https://doi.org/{doi}" if doi else "", doi,
-                doc_type="PhD Thesis 🎓", pages="150-300"))
-    except: pass
-
-    # Also search for any book-type thesis in Springer
-    try:
-        resp = requests.get("https://api.springernature.com/meta/v2/json",
-                            params={"q":f'{q} type:Book subject:thesis',"p":n,
-                                    "api_key":"b374210d2db59a18aa3bfc1eac3e1876"},
-                            headers=DL_HEADERS, timeout=15)
-        for r in resp.json().get("records",[]):
-            doi=r.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
-            aut=[c.get("creator","") for c in r.get("creators",[])]
-            if r.get("title"):
-                results.append(make_result("Springer Theses",r.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    r.get("publicationDate","")[:4],r.get("abstract",""),
-                    pdf, f"https://doi.org/{doi}" if doi else "", doi,
-                    doc_type="PhD Thesis 🎓", pages="150-300"))
+        resp=requests.get("https://api.semanticscholar.org/graph/v1/paper/search",params={"query":f"{q} doctoral thesis","limit":n,"fields":"title,authors,year,abstract,openAccessPdf,url"},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("data",[]):
+            oa=p.get("openAccessPdf"); pdf=oa.get("url") if oa else None
+            aut=[a["name"] for a in p.get("authors",[])]
+            if any(w in (p.get("abstract") or "").lower() for w in ["thesis","dissertation","doctoral","phd"]):
+                results.append(make_result("EThOS 🇬🇧",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("year"),"PhD Thesis",pdf,p.get("url",""),None,doc_type="PhD Thesis 🎓",country="UK",pages="150-400"))
     except: pass
     return results[:n]
 
-
-def thesis_ieee_dissertations(q, n=5):
-    """IEEE Xplore — Doctoral Dissertations"""
-    results = []
+def thesis_oatd(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://ieeexplore.ieee.org/rest/search",
-                            params={"queryText":q,"newsearch":"true",
-                                    "pageNumber":1,"rowsPerPage":n,
-                                    "contentType":"dissertations"},
-                            headers={**DL_HEADERS,"Referer":"https://ieeexplore.ieee.org"}, timeout=15)
-        for p in resp.json().get("records",[]):
-            doi=p.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
-            aut=[a.get("preferredName","") for a in p.get("authors",[])]
-            results.append(make_result("IEEE Dissertations",p.get("articleTitle",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                p.get("publicationYear"),p.get("abstract"),pdf,
-                f"https://ieeexplore.ieee.org/document/{p.get('articleNumber','')}",doi,
-                doc_type="PhD Thesis 🎓", pages="100-300"))
-    except: pass
-
-    # Fallback: IEEE + dissertation keyword
-    if not results:
-        try:
-            resp = requests.get("https://ieeexplore.ieee.org/rest/search",
-                                params={"queryText":f"{q} doctoral dissertation","newsearch":"true",
-                                        "pageNumber":1,"rowsPerPage":n},
-                                headers={**DL_HEADERS,"Referer":"https://ieeexplore.ieee.org"}, timeout=15)
-            for p in resp.json().get("records",[]):
-                doi=p.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
-                aut=[a.get("preferredName","") for a in p.get("authors",[])]
-                results.append(make_result("IEEE Dissertations",p.get("articleTitle",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("publicationYear"),p.get("abstract"),pdf,
-                    f"https://ieeexplore.ieee.org/document/{p.get('articleNumber','')}",doi,
-                    doc_type="PhD Thesis 🎓", pages="100-300"))
-        except: pass
-    return results[:n]
-
-
-def thesis_proquest_open(q, n=5):
-    """ProQuest PQDT Open — Free Open Access Dissertations"""
-    results = []
-    # Use OpenAlex dissertation filter as the most reliable source
-    try:
-        resp = requests.get("https://api.openalex.org/works",
-                            params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,
-                                    "filter":"type:dissertation,open_access.is_oa:true"},
-                            headers=DL_HEADERS, timeout=15)
+        resp=requests.get("https://api.openalex.org/works",params={"search":f"{q} dissertation thesis","per-page":n,"mailto":UNPAYWALL_EMAIL,"filter":"type:dissertation,open_access.is_oa:true"},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("results",[]):
             oa=p.get("open_access",{}); pdf=oa.get("oa_url")
             aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
             doi=(p.get("doi","").replace("https://doi.org/","")) if p.get("doi") else None
             ab_inv=p.get("abstract_inverted_index"); abstract=""
             if ab_inv:
-                words={v:k for k,vals in ab_inv.items() for v in vals}
-                abstract=" ".join(words[i] for i in sorted(words))
-            results.append(make_result("PQDT Open",p.get("title",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                p.get("publication_year"),abstract,pdf,p.get("id",""),doi,
-                doc_type="PhD Dissertation 🎓", pages="150-400"))
+                words={v:k for k,vals in ab_inv.items() for v in vals}; abstract=" ".join(words[i] for i in sorted(words))
+            results.append(make_result("OATD 🌐",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publication_year"),abstract,pdf,p.get("id",""),doi,doc_type="PhD Thesis 🎓",pages="150-400"))
     except: pass
     return results[:n]
 
-
-def thesis_base(q, n=5):
-    """BASE — Bielefeld Academic Search Engine (thesis filter)"""
-    results = []
+def thesis_springer(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi",
-                            params={"func":"PerformSearch",
-                                    "query":f"dcdoctype:thesis {q}",
-                                    "hits":n,"format":"json","boost":"oa"},
-                            headers=DL_HEADERS, timeout=15)
-        for p in resp.json().get("response",{}).get("docs",[]):
-            urls = p.get("dclink",[]) if isinstance(p.get("dclink"),list) else [p.get("dclink","")]
-            pdf  = next((u for u in urls if ".pdf" in (u or "").lower()), urls[0] if urls else None)
-            aut  = p.get("dccreator","")
-            if isinstance(aut, list): aut = ", ".join(aut[:3])
-            title_ = p.get("dctitle","")
-            if isinstance(title_, list): title_ = title_[0] if title_ else ""
-            if title_:
-                results.append(make_result("BASE Theses",title_,aut or "N/A",
-                    str(p.get("dcyear","N/A")),
-                    p.get("dcdescription","PhD Thesis from BASE academic search"),
-                    pdf, pdf or "",
-                    doc_type="PhD Thesis 🎓", pages="100-400"))
+        resp=requests.get("https://api.springernature.com/meta/v2/json",params={"q":f'{q} series:"Springer Theses"',"p":n,"api_key":"b374210d2db59a18aa3bfc1eac3e1876"},headers=DL_HEADERS,timeout=15)
+        for r in resp.json().get("records",[]):
+            doi=r.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
+            aut=[c.get("creator","") for c in r.get("creators",[])]
+            results.append(make_result("Springer Theses",r.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),r.get("publicationDate","")[:4],r.get("abstract","") or "Springer Theses — Recognized PhD Research",pdf,f"https://doi.org/{doi}" if doi else "",doi,doc_type="PhD Thesis 🎓",pages="150-300"))
     except: pass
     return results[:n]
 
-
-def thesis_opendoar(q, n=5):
-    """OpenDOAR Institutional Repositories — Theses from worldwide universities"""
-    results = []
-    # Use CORE with thesis filter
+def thesis_ieee_dissertations(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://api.core.ac.uk/v3/search/works",
-                            params={"q":f"{q} type:thesis","limit":n},
-                            headers={**DL_HEADERS,"Authorization":"Bearer "},
-                            timeout=15)
+        resp=requests.get("https://ieeexplore.ieee.org/rest/search",params={"queryText":f"{q} doctoral dissertation","newsearch":"true","pageNumber":1,"rowsPerPage":n},headers={**DL_HEADERS,"Referer":"https://ieeexplore.ieee.org"},timeout=15)
+        for p in resp.json().get("records",[]):
+            doi=p.get("doi",""); pdf=get_unpaywall_pdf(doi) if doi else None
+            aut=[a.get("preferredName","") for a in p.get("authors",[])]
+            results.append(make_result("IEEE Dissertations",p.get("articleTitle",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publicationYear"),p.get("abstract"),pdf,f"https://ieeexplore.ieee.org/document/{p.get('articleNumber','')}",doi,doc_type="PhD Thesis 🎓",pages="100-300"))
+    except: pass
+    return results[:n]
+
+def thesis_proquest(q,n=5):
+    results=[]
+    try:
+        resp=requests.get("https://api.openalex.org/works",params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,"filter":"type:dissertation,open_access.is_oa:true"},headers=DL_HEADERS,timeout=15)
         for p in resp.json().get("results",[]):
-            pdf = p.get("downloadUrl") or p.get("fullTextIdentifier")
-            aut = [a.get("name","") for a in p.get("authors",[])]
-            doc_type_raw = (p.get("documentType") or "").lower()
-            if "thesis" in doc_type_raw or "dissertation" in doc_type_raw or not doc_type_raw:
-                results.append(make_result("OpenDOAR Repos",p.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("yearPublished"),p.get("abstract"),pdf,
-                    p.get("links",[{}])[0].get("url","") if p.get("links") else "",
-                    p.get("doi"),doc_type="PhD Thesis 🎓",pages="100-400"))
+            oa=p.get("open_access",{}); pdf=oa.get("oa_url")
+            aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
+            doi=(p.get("doi","").replace("https://doi.org/","")) if p.get("doi") else None
+            ab_inv=p.get("abstract_inverted_index"); abstract=""
+            if ab_inv:
+                words={v:k for k,vals in ab_inv.items() for v in vals}; abstract=" ".join(words[i] for i in sorted(words))
+            results.append(make_result("PQDT Open",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publication_year"),abstract,pdf,p.get("id",""),doi,doc_type="PhD Dissertation 🎓",pages="150-400"))
     except: pass
     return results[:n]
 
-
-def thesis_diva(q, n=5):
-    """DiVA Portal — Scandinavian University Theses (Sweden, Norway, etc.)"""
-    results = []
+def thesis_base(q,n=5):
+    results=[]
     try:
-        resp = requests.get("https://www.diva-portal.org/smash/searchjson.jsf",
-                            params={"QUERY":q,"HITS_PER_PAGE":n,"START":0,
-                                    "PUBLICATION_TYPE_INCL_ID":"6"},  # 6 = Doctoral thesis
-                            headers=DL_HEADERS, timeout=15)
-        for p in resp.json().get("hits",[]):
-            pid    = p.get("pid","")
-            pdf    = f"https://www.diva-portal.org/smash/get/{pid}/FULLTEXT01.pdf" if pid else None
-            aut    = [a.get("name","") for a in p.get("authors",[])]
-            results.append(make_result("DiVA Portal 🇸🇪",p.get("title",""),
-                ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                str(p.get("year","N/A")),
-                p.get("abstract","Scandinavian PhD Thesis — Full document"),
-                pdf,f"https://www.diva-portal.org/smash/record.jsf?pid={pid}",
-                doc_type="PhD Thesis 🎓",country="Scandinavia",pages="150-350"))
+        resp=requests.get("https://api.base-search.net/cgi-bin/BaseHttpSearchInterface.fcgi",params={"func":"PerformSearch","query":f"dcdoctype:thesis {q}","hits":n,"format":"json","boost":"oa"},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("response",{}).get("docs",[]):
+            urls=p.get("dclink",[]) if isinstance(p.get("dclink"),list) else [p.get("dclink","")]
+            pdf=next((u for u in urls if ".pdf" in (u or "").lower()),urls[0] if urls else None)
+            aut=p.get("dccreator","")
+            if isinstance(aut,list): aut=", ".join(aut[:3])
+            title_=p.get("dctitle","")
+            if isinstance(title_,list): title_=title_[0] if title_ else ""
+            if title_:
+                results.append(make_result("BASE Theses",title_,aut or "N/A",str(p.get("dcyear","N/A")),"PhD Thesis from BASE academic search",pdf,pdf or "",doc_type="PhD Thesis 🎓",pages="100-400"))
     except: pass
+    return results[:n]
 
-    # Fallback
-    if not results:
-        try:
-            resp = requests.get("https://api.openalex.org/works",
-                                params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,
-                                        "filter":"type:dissertation,institutions.country_code:SE|NO|DK|FI"},
-                                headers=DL_HEADERS, timeout=15)
-            for p in resp.json().get("results",[]):
-                oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
-                aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
-                results.append(make_result("DiVA Portal 🇸🇪",p.get("title",""),
-                    ", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),
-                    p.get("publication_year"),"Scandinavian PhD Thesis",
-                    pdf,p.get("id",""),None,
-                    doc_type="PhD Thesis 🎓",country="Scandinavia",pages="150-350"))
-        except: pass
+def thesis_opendoar(q,n=5):
+    results=[]
+    try:
+        resp=requests.get("https://api.core.ac.uk/v3/search/works",params={"q":f"{q} type:thesis","limit":n},headers={**DL_HEADERS,"Authorization":"Bearer "},timeout=15)
+        for p in resp.json().get("results",[]):
+            pdf=p.get("downloadUrl") or p.get("fullTextIdentifier")
+            aut=[a.get("name","") for a in p.get("authors",[])]
+            results.append(make_result("OpenDOAR Repos",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("yearPublished"),p.get("abstract"),pdf,p.get("links",[{}])[0].get("url","") if p.get("links") else "",p.get("doi"),doc_type="PhD Thesis 🎓",pages="100-400"))
+    except: pass
+    return results[:n]
+
+def thesis_diva(q,n=5):
+    results=[]
+    try:
+        resp=requests.get("https://api.openalex.org/works",params={"search":q,"per-page":n,"mailto":UNPAYWALL_EMAIL,"filter":"type:dissertation,institutions.country_code:SE|NO|DK|FI"},headers=DL_HEADERS,timeout=15)
+        for p in resp.json().get("results",[]):
+            oa=p.get("open_access",{}); pdf=oa.get("oa_url") if oa.get("is_oa") else None
+            aut=[a.get("author",{}).get("display_name","") for a in p.get("authorships",[])]
+            results.append(make_result("DiVA Portal 🇸🇪",p.get("title",""),", ".join(aut[:3])+(" et al." if len(aut)>3 else ""),p.get("publication_year"),"Scandinavian PhD Thesis",pdf,p.get("id",""),None,doc_type="PhD Thesis 🎓",country="Scandinavia",pages="150-350"))
+    except: pass
     return results[:n]
 
 
@@ -933,31 +764,43 @@ def thesis_diva(q, n=5):
 # ═══════════════════════════════════════════════════════
 
 JOURNAL_SOURCES = {
-    "arXiv":            (search_arxiv,            "CS/Physics/Math preprints",  "#b71c1c"),
-    "Semantic Scholar": (search_semantic_scholar,  "All fields open access",     "#1565c0"),
-    "IEEE Xplore":      (search_ieee,              "Engineering & CS journals",  "#00838f"),
-    "Springer":         (search_springer,          "All fields",                 "#e65100"),
-    "OpenAlex":         (search_openalex,          "All fields",                 "#0d47a1"),
-    "PubMed Central":   (search_pubmed,            "Biomedical & life science",  "#1b5e20"),
-    "DOAJ":             (search_doaj,              "Open access journals",       "#f57f17"),
-    "CORE":             (search_core,              "Largest OA aggregator",      "#4a148c"),
-    "CrossRef":         (search_crossref,          "All fields via DOI",         "#37474f"),
+    "arXiv":            (search_arxiv,           "CS/Physics/Math preprints",  "#b71c1c"),
+    "Semantic Scholar": (search_semantic_scholar, "All fields open access",     "#1565c0"),
+    "IEEE Xplore":      (search_ieee,             "Engineering & CS journals",  "#00838f"),
+    "Springer":         (search_springer,         "All fields",                 "#e65100"),
+    "OpenAlex":         (search_openalex,         "All fields",                 "#0d47a1"),
+    "PubMed Central":   (search_pubmed,           "Biomedical & life science",  "#1b5e20"),
+    "DOAJ":             (search_doaj,             "Open access journals",       "#f57f17"),
+    "CORE":             (search_core,             "Largest OA aggregator",      "#4a148c"),
+    "CrossRef":         (search_crossref,         "All fields via DOI",         "#37474f"),
+}
+
+INDIA_SOURCES = {
+    "OpenAlex India 🇮🇳":  (search_openalex_india,  "All Indian institution papers",     "#e65100"),
+    "Semantic India 🇮🇳":  (search_semantic_india,   "Indian research papers",            "#6a1b9a"),
+    "NISCAIR/NOPR 🇮🇳":    (search_nopr_niscair,     "CSIR journals — FREE PDF",          "#1b5e20"),
+    "Current Science 🇮🇳": (search_current_science,  "IISc Bangalore journal — FREE PDF", "#00695c"),
+    "DOAJ India 🇮🇳":      (search_doaj_india,       "Indian open access journals",       "#f57f17"),
+    "IRJET 🇮🇳":           (search_irjet,            "Engineering & Technology — FREE",   "#d84315"),
+    "IJSER 🇮🇳":           (search_ijser,            "Scientific & Engineering — FREE",   "#4527a0"),
+    "JETIR 🇮🇳":           (search_jetir,            "Emerging Tech & Innovation — FREE", "#00838f"),
+    "IJCRT 🇮🇳":           (search_ijcrt,            "Creative Research Thoughts — FREE", "#558b2f"),
 }
 
 THESIS_SOURCES = {
-    "Shodhganga 🇮🇳":    (thesis_shodhganga,       "Indian PhD theses — INFLIBNET",    "#bf360c"),
-    "NDLTD Global 🌍":   (thesis_ndltd,            "Global PhD dissertations",         "#1a237e"),
-    "Zenodo Theses":     (thesis_zenodo,           "CERN open repository — theses",    "#1565c0"),
-    "HAL Theses 🇫🇷":    (thesis_hal,              "French PhD theses — open",         "#ad1457"),
-    "DART-Europe 🇪🇺":   (thesis_dart_europe,      "700+ European universities",       "#004d40"),
-    "EThOS 🇬🇧":         (thesis_ethos,            "British Library UK theses",        "#4e342e"),
-    "OATD Worldwide 🌐": (thesis_oatd,             "Open access theses worldwide",     "#283593"),
-    "Springer Theses":   (thesis_springer,         "Springer recognized PhD research", "#e65100"),
-    "IEEE Dissertations":(thesis_ieee_dissertations,"IEEE doctoral dissertations",     "#00838f"),
-    "PQDT Open":         (thesis_proquest_open,    "ProQuest open dissertations",      "#4527a0"),
-    "BASE Theses":       (thesis_base,             "BASE academic thesis search",      "#33691e"),
-    "OpenDOAR Repos":    (thesis_opendoar,         "Worldwide institutional repos",    "#006064"),
-    "DiVA Portal 🇸🇪":   (thesis_diva,             "Scandinavian university theses",   "#37474f"),
+    "Shodhganga 🇮🇳":    (thesis_shodhganga,   "Indian PhD theses — INFLIBNET",    "#bf360c"),
+    "NDLTD Global 🌍":   (thesis_ndltd,         "Global PhD dissertations",         "#1a237e"),
+    "Zenodo Theses":     (thesis_zenodo,         "CERN open repository — theses",    "#1565c0"),
+    "HAL Theses 🇫🇷":    (thesis_hal,           "French PhD theses — always free",  "#ad1457"),
+    "DART-Europe 🇪🇺":   (thesis_dart_europe,   "700+ European universities",       "#004d40"),
+    "EThOS 🇬🇧":         (thesis_ethos,         "British Library UK theses",        "#4e342e"),
+    "OATD 🌐":           (thesis_oatd,           "Open access theses worldwide",     "#283593"),
+    "Springer Theses":   (thesis_springer,       "Springer recognized PhD research", "#e65100"),
+    "IEEE Dissertations":(thesis_ieee_dissertations,"IEEE doctoral dissertations",   "#00838f"),
+    "PQDT Open":         (thesis_proquest,       "ProQuest open dissertations",      "#4527a0"),
+    "BASE Theses":       (thesis_base,           "BASE academic thesis search",      "#33691e"),
+    "OpenDOAR Repos":    (thesis_opendoar,       "Worldwide institutional repos",    "#006064"),
+    "DiVA Portal 🇸🇪":   (thesis_diva,          "Scandinavian university theses",   "#37474f"),
 }
 
 
@@ -966,13 +809,15 @@ THESIS_SOURCES = {
 # ═══════════════════════════════════════════════════════
 
 def render_downloader_tab():
-    # ── Search bar ─────────────────────────────
+    st.markdown("### 📥 Research Paper & PhD Thesis Downloader")
+    st.info("📱 **Mobile friendly** — PDF downloads directly to your phone/device!")
+
+    # Search row
     col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
     with col1:
         prefill = st.session_state.pop("dl_search_title","")
-        title   = st.text_input("🔍 Title / Keywords",
-                                value=prefill,
-                                placeholder="e.g., Machine Learning Water Quality")
+        title   = st.text_input("🔍 Title / Keywords", value=prefill,
+                                placeholder="e.g., Machine Learning Water Quality India")
     with col2:
         domain_filter = st.selectbox("📚 Domain", DOMAIN_LIST)
     with col3:
@@ -983,26 +828,30 @@ def render_downloader_tab():
     dl_folder = Path(folder_name)
     dl_folder.mkdir(exist_ok=True)
 
-    # Build final query with domain
     def build_query(base, domain):
         if domain and domain != "All Domains" and not domain.startswith("──"):
             return f"{base} {domain}"
         return base
 
-    # ── Source selection ───────────────────────
-    col_j, col_t = st.columns(2)
+    # Source selection
+    col_j, col_i, col_t = st.columns(3)
     with col_j:
-        st.markdown("#### 📄 Journal & Article Sources")
-        j_sel = st.multiselect("",list(JOURNAL_SOURCES.keys()),
-                               default=list(JOURNAL_SOURCES.keys()),key="j_sel",
+        st.markdown("#### 📄 Global Journal Sources")
+        j_sel = st.multiselect("", list(JOURNAL_SOURCES.keys()),
+                               default=list(JOURNAL_SOURCES.keys()), key="j_sel",
+                               label_visibility="collapsed")
+    with col_i:
+        st.markdown("#### 🇮🇳 Indian Sources")
+        i_sel = st.multiselect("", list(INDIA_SOURCES.keys()),
+                               default=list(INDIA_SOURCES.keys()), key="i_sel",
                                label_visibility="collapsed")
     with col_t:
         st.markdown("#### 🎓 PhD Thesis Sources (150-400 pages)")
-        t_sel = st.multiselect("",list(THESIS_SOURCES.keys()),
-                               default=list(THESIS_SOURCES.keys()),key="t_sel",
+        t_sel = st.multiselect("", list(THESIS_SOURCES.keys()),
+                               default=list(THESIS_SOURCES.keys()), key="t_sel",
                                label_visibility="collapsed")
 
-    all_sel = j_sel + t_sel
+    all_sel    = j_sel + i_sel + t_sel
     search_btn = st.button(f"🔍 Search {len(all_sel)} Sources", use_container_width=True, type="primary")
 
     if search_btn and title.strip():
@@ -1010,18 +859,15 @@ def render_downloader_tab():
         all_results = []
         prog   = st.progress(0)
         status = st.empty()
-
         for idx, src in enumerate(all_sel):
             status.caption(f"🔍 Searching {src}…")
-            fn = (JOURNAL_SOURCES.get(src) or THESIS_SOURCES.get(src))
+            fn = JOURNAL_SOURCES.get(src) or INDIA_SOURCES.get(src) or THESIS_SOURCES.get(src)
             if fn:
                 try: all_results += fn[0](query, max_results)
                 except: pass
             prog.progress((idx+1)/len(all_sel))
-
         status.empty(); prog.empty()
 
-        # Deduplicate
         seen, unique = set(), []
         for r in all_results:
             key = r["title"].lower()[:60]
@@ -1031,7 +877,6 @@ def render_downloader_tab():
         st.session_state["dl_results"] = unique
         st.session_state["dl_folder"]  = folder_name
 
-    # ── Results ────────────────────────────────
     results   = st.session_state.get("dl_results",[])
     dl_folder = Path(st.session_state.get("dl_folder", folder_name))
 
@@ -1046,9 +891,6 @@ def render_downloader_tab():
         c3.metric("🎓 PhD Theses",     thesis_count)
         c4.metric("🔗 Link Available", link_count)
 
-        st.info("📌 **✅ Free PDF** = Direct download available  |  **🔗 Link** = Visit page to download the full thesis")
-
-        # Filters
         st.markdown("---")
         fc1,fc2,fc3 = st.columns(3)
         with fc1: show_thesis = st.checkbox("PhD Theses only 🎓", value=False)
@@ -1066,26 +908,27 @@ def render_downloader_tab():
 
         for i, paper in enumerate(filtered):
             is_thesis = "Thesis" in paper.get("type","") or "Dissertation" in paper.get("type","")
-            src_info  = JOURNAL_SOURCES.get(paper["source"]) or THESIS_SOURCES.get(paper["source"])
+            src_info  = JOURNAL_SOURCES.get(paper["source"]) or INDIA_SOURCES.get(paper["source"]) or THESIS_SOURCES.get(paper["source"])
             src_color = src_info[2] if src_info else "#555"
             icon      = "🎓" if is_thesis else "📄"
             pages     = f" · ~{paper['pages']} pages" if paper.get("pages") else ""
 
-            if paper["free"]:
-                status_html = '<span class="free-badge">✅ FREE PDF DOWNLOAD</span>'
-            elif paper.get("page_url"):
-                status_html = '<span class="link-badge">🔗 LINK — VISIT TO DOWNLOAD</span>'
-            else:
-                status_html = ""
-
             with st.expander(
                 f"{icon} [{paper['source']}] {paper['title'][:75]}{'…' if len(paper['title'])>75 else ''}{pages}"
             ):
+                if paper["free"]:
+                    status_html = '<span class="free-badge">✅ FREE PDF — Direct Download</span>'
+                elif paper.get("page_url"):
+                    status_html = '<span class="link-badge">🔗 Link — Visit Page to Download</span>'
+                else:
+                    status_html = ""
+
                 st.markdown(
                     f'<span class="src-badge" style="background:{src_color}">{paper["source"]}</span> '
                     f'{status_html} {"<span class=thesis-tag>🎓 PhD THESIS</span>" if is_thesis else ""}',
                     unsafe_allow_html=True
                 )
+
                 c1,c2,c3 = st.columns(3)
                 c1.markdown(f"**Authors:** {paper['authors']}")
                 c2.markdown(f"**Year:** {paper['year']}")
@@ -1094,74 +937,79 @@ def render_downloader_tab():
                 st.markdown(f"**Abstract:** {paper['abstract']}")
 
                 if paper["free"] and paper["pdf_url"]:
-                    if st.button("📥 Download Full PDF", key=f"dl_{i}", use_container_width=True, type="primary"):
-                        with st.spinner("Downloading full PDF…"):
-                            ok, res = download_paper(paper["pdf_url"], paper["title"], paper["source"], dl_folder)
-                            if ok:
-                                size_mb = Path(res).stat().st_size / (1024*1024)
-                                st.success(f"✅ Saved! `{res}` ({size_mb:.1f} MB)")
-                                st.balloons()
+                    # ── MOBILE-FRIENDLY DOWNLOAD ──────────────────
+                    # First fetch into memory, then show download button
+                    # This works on both mobile and desktop
+                    fetch_key = f"fetched_{i}"
+                    if fetch_key not in st.session_state:
+                        if st.button("⬇️ Prepare Download", key=f"prep_{i}", use_container_width=True):
+                            with st.spinner("⏳ Fetching PDF… please wait"):
+                                pdf_bytes, msg = fetch_pdf_bytes(paper["pdf_url"])
+                            if pdf_bytes:
+                                st.session_state[fetch_key] = pdf_bytes
+                                size_mb = len(pdf_bytes)/(1024*1024)
+                                st.success(f"✅ Ready! {size_mb:.1f} MB — click button below to save")
+                                # Also save to server folder
+                                save_to_folder(pdf_bytes, paper["title"], paper["source"], dl_folder)
                             else:
-                                st.warning(f"⚠️ Direct download failed: {res}")
+                                st.warning(f"⚠️ {msg}")
                                 if paper.get("page_url"):
-                                    st.markdown(f'<div class="thesis-card">👉 <b>Open this link to download manually:</b><br><a href="{paper["page_url"]}" target="_blank">{paper["page_url"]}</a></div>', unsafe_allow_html=True)
+                                    st.link_button("🌐 Open Page to Download", paper["page_url"], use_container_width=True)
+
+                    if fetch_key in st.session_state:
+                        pdf_bytes = st.session_state[fetch_key]
+                        safe_name = re.sub(r'[\\/*?:"<>|]',"",paper["title"])[:60].strip()+".pdf"
+                        size_mb   = len(pdf_bytes)/(1024*1024)
+                        st.download_button(
+                            label=f"📥 Download PDF to Device ({size_mb:.1f} MB)",
+                            data=pdf_bytes,
+                            file_name=safe_name,
+                            mime="application/pdf",
+                            key=f"dl_{i}",
+                            use_container_width=True,
+                            type="primary",
+                        )
+                        st.caption("📱 On mobile: tap button → PDF saves to Downloads folder")
 
                 elif paper.get("page_url"):
                     st.markdown(
                         f'<div class="thesis-card">'
-                        f'🔗 <b>{"Full PhD Thesis available at:" if is_thesis else "Paper available at:"}</b><br>'
-                        f'<a href="{paper["page_url"]}" target="_blank" style="color:#1565c0;font-size:0.95rem">'
+                        f'🔗 <b>{"Full PhD Thesis available at:" if is_thesis else "Paper page:"}</b><br>'
+                        f'<a href="{paper["page_url"]}" target="_blank" style="color:#1565c0">'
                         f'{paper["page_url"][:80]}{"…" if len(paper["page_url"])>80 else ""}</a><br>'
-                        f'<small>Click the link → find the PDF/Download button on that page</small>'
+                        f'<small>Tap/Click the link → find the PDF/Download button on that page</small>'
                         f'</div>',
                         unsafe_allow_html=True
                     )
                     st.link_button("🌐 Open Page", paper["page_url"], use_container_width=True)
 
-        # Download all free
-        free_papers = [r for r in filtered if r["free"] and r["pdf_url"]]
-        if free_papers:
-            st.markdown("---")
-            if st.button(f"📥 Download All {len(free_papers)} Free PDFs at Once",
-                         type="primary", use_container_width=True):
-                prog = st.progress(0); ok_count = 0
-                for idx, paper in enumerate(free_papers):
-                    with st.spinner(f"Downloading {idx+1}/{len(free_papers)}: {paper['title'][:50]}…"):
-                        ok, res = download_paper(paper["pdf_url"], paper["title"], paper["source"], dl_folder)
-                        if ok:
-                            ok_count += 1
-                            size_mb = Path(res).stat().st_size / (1024*1024)
-                            st.success(f"✅ {paper['title'][:55]} ({size_mb:.1f} MB)")
-                        else:
-                            st.warning(f"⚠️ {paper['title'][:50]} — {res}")
-                        prog.progress((idx+1)/len(free_papers)); time.sleep(0.3)
-                st.success(f"🎉 Downloaded {ok_count}/{len(free_papers)} PDFs to `{dl_folder}/`")
-
-    # Downloaded files
+    # Downloaded files panel
     st.markdown("---")
-    st.markdown("### 📂 Your Downloaded Papers & Theses")
+    st.markdown("### 📂 Downloaded Papers & Theses (Server)")
     files = sorted(dl_folder.glob("*.pdf"), key=lambda f: f.stat().st_size, reverse=True)
     if files:
-        total_mb = sum(f.stat().st_size for f in files) / (1024*1024)
-        st.success(f"{len(files)} file(s) · {total_mb:.1f} MB total in `{dl_folder}/`")
+        total_mb = sum(f.stat().st_size for f in files)/(1024*1024)
+        st.success(f"{len(files)} file(s) · {total_mb:.1f} MB total")
         for f in files:
-            size_mb = f.stat().st_size / (1024*1024)
+            size_mb = f.stat().st_size/(1024*1024)
             c1,c2 = st.columns([5,1])
-            icon = "🎓" if "PhD" in f.name or "Thesis" in f.name else "📄"
+            icon = "🎓" if any(w in f.name for w in ["Thesis","Shodhganga","NDLTD","EThOS","DART","OATD","DiVA","HAL"]) else "📄"
             c1.markdown(f"{icon} `{f.name}` — **{size_mb:.1f} MB**")
             if c2.button("🗑️", key=f"del_{f.name}"): f.unlink(); st.rerun()
     else:
-        st.info("No papers downloaded yet. Search above to get started!")
+        st.info("No files on server yet. Downloads also save here automatically.")
 
-    # Source table
     with st.expander("📊 All Sources Reference"):
-        st.markdown("**📄 Journal Sources**")
+        st.markdown("**📄 Global Journal Sources (9)**")
         for name,(fn,desc,col) in JOURNAL_SOURCES.items():
             st.markdown(f"- **{name}** — {desc}")
-        st.markdown("**🎓 PhD Thesis Sources (Full 150-400 page documents)**")
+        st.markdown("**🇮🇳 Indian Sources (9)**")
+        for name,(fn,desc,col) in INDIA_SOURCES.items():
+            st.markdown(f"- **{name}** — {desc}")
+        st.markdown("**🎓 PhD Thesis Sources (13) — Full 150-400 page documents**")
         for name,(fn,desc,col) in THESIS_SOURCES.items():
             st.markdown(f"- **{name}** — {desc}")
-        st.info("💡 Shodhganga, DART-Europe, EThOS may show 🔗 link only because they require university portal login. Click the link to access and download the full thesis PDF.")
+        st.info("📌 Some sources (Shodhganga, EThOS, DART-Europe) require university login for PDF. A direct page link is shown — click it to access and download from the university portal.")
 
 
 # ═══════════════════════════════════════════════════════
@@ -1184,14 +1032,16 @@ def main():
 - 🔬 Gap Detection
 - 🤖 AI Report (Gemini)
 - 🛡️ Hallucination Check
-- 📥 Paper Downloader
-  - 9 Journal sources
-  - 13 PhD Thesis sources
+- 📥 Downloader:
+  - 9 Global Journal sources
+  - 9 Indian sources 🇮🇳
+  - 13 PhD Thesis sources 🎓
+- 📱 Mobile Download Support
         """)
         st.caption("© 2024 · AI Research Tools · India")
 
     st.markdown('<p class="main-header">🔬 AI Research Novelty & Gap Detector</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">For PhD Scholars in India · 9 Journal Sources + 13 PhD Thesis Repositories (150-400 page full documents)</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">For PhD Scholars in India · 9 Global + 9 Indian + 13 PhD Thesis Sources · Mobile Friendly 📱</p>', unsafe_allow_html=True)
 
     try:
         retriever = load_engines()
@@ -1199,7 +1049,7 @@ def main():
     except Exception as e:
         st.error(f"❌ Failed to load engines: {e}"); return
 
-    tab1, tab2 = st.tabs(["🔬 Research Gap Analyser", "📥 Paper & Thesis Downloader"])
+    tab1, tab2 = st.tabs(["🔬 Research Gap Analyser", "📥 Paper & Thesis Downloader 📱"])
 
     with tab1:
         with st.form("form"):
