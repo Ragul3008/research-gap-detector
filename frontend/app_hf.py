@@ -25,31 +25,31 @@ st.set_page_config(page_title="AI Research Novelty & Gap Detector",
 
 st.markdown("""
 <style>
-.main-header{font-size:2.2rem;font-weight:800;background:linear-gradient(90deg,#1a237e,#0d47a1,#1565c0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.sub-header{font-size:1rem;color:#546e7a;margin-bottom:1.2rem;}
-.novelty-badge-high{background:#2ecc71;color:#fff;padding:6px 18px;border-radius:20px;font-weight:700;}
-.novelty-badge-medium{background:#f39c12;color:#fff;padding:6px 18px;border-radius:20px;font-weight:700;}
+.main-header{font-size:2.2rem;font-weight:800;background:linear-gradient(90deg,#f9a825,#fdd835,#1565c0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.sub-header{font-size:1rem;color:#f9a825;margin-bottom:1.2rem;font-weight:600;}
+.novelty-badge-high{background:#1565c0;color:#fdd835;padding:6px 18px;border-radius:20px;font-weight:700;border:2px solid #fdd835;}
+.novelty-badge-medium{background:#f9a825;color:#1a237e;padding:6px 18px;border-radius:20px;font-weight:700;}
 .novelty-badge-low{background:#e74c3c;color:#fff;padding:6px 18px;border-radius:20px;font-weight:700;}
-.gap-card{background:#fff3e0;border-left:4px solid #f57c00;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.paper-card{background:#e8f5e9;border-left:4px solid #388e3c;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.title-suggestion{background:#e3f2fd;border-left:4px solid #1976d2;padding:10px 14px;border-radius:8px;margin:8px 0;font-style:italic;color:#1a1a1a!important;}
-.metric-card{background:#f8f9fa;border-left:4px solid #1565c0;padding:12px 16px;border-radius:8px;margin:6px 0;color:#1a1a1a!important;}
-.plag-safe{background:#e8f5e9;border-left:4px solid #2ecc71;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.plag-low{background:#e3f2fd;border-left:4px solid #3498db;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.plag-medium{background:#fff8e1;border-left:4px solid #f39c12;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.gap-card{background:#fffde7;border-left:4px solid #f9a825;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.paper-card{background:#e3f2fd;border-left:4px solid #1565c0;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.title-suggestion{background:#fffde7;border-left:4px solid #fdd835;padding:10px 14px;border-radius:8px;margin:8px 0;font-style:italic;color:#1a1a1a!important;}
+.metric-card{background:#e3f2fd;border-left:4px solid #1565c0;padding:12px 16px;border-radius:8px;margin:6px 0;color:#1a1a1a!important;}
+.plag-safe{background:#e3f2fd;border-left:4px solid #1565c0;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.plag-low{background:#fffde7;border-left:4px solid #f9a825;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.plag-medium{background:#fff8e1;border-left:4px solid #fdd835;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
 .plag-high{background:#ffebee;border-left:4px solid #e74c3c;padding:12px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.flagged-sent{background:#fce4ec;border-left:4px solid #c62828;padding:8px 12px;border-radius:6px;margin:6px 0;color:#1a1a1a!important;font-size:0.88rem;}
-.phrase-match{background:#f3e5f5;border-left:4px solid #7b1fa2;padding:8px 12px;border-radius:6px;margin:6px 0;color:#1a1a1a!important;font-size:0.88rem;}
-.hallucination-safe{background:#e8f5e9;border-left:4px solid #2ecc71;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.hallucination-warn{background:#fff8e1;border-left:4px solid #f39c12;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.flagged-sent{background:#fffde7;border-left:4px solid #f9a825;padding:8px 12px;border-radius:6px;margin:6px 0;color:#1a1a1a!important;font-size:0.88rem;}
+.phrase-match{background:#e3f2fd;border-left:4px solid #1565c0;padding:8px 12px;border-radius:6px;margin:6px 0;color:#1a1a1a!important;font-size:0.88rem;}
+.hallucination-safe{background:#e3f2fd;border-left:4px solid #1565c0;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.hallucination-warn{background:#fffde7;border-left:4px solid #f9a825;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
 .hallucination-danger{background:#ffebee;border-left:4px solid #e74c3c;padding:10px 14px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.flagged-claim{background:#fce4ec;border-left:4px solid #c62828;padding:8px 12px;border-radius:6px;margin:6px 0;color:#1a1a1a!important;font-size:0.9rem;}
+.flagged-claim{background:#fffde7;border-left:4px solid #f9a825;padding:8px 12px;border-radius:6px;margin:6px 0;color:#1a1a1a!important;font-size:0.9rem;}
 .src-badge{display:inline-block;padding:3px 10px;border-radius:12px;font-size:0.78rem;font-weight:700;margin-right:4px;color:#fff;}
-.free-badge{background:#2ecc71;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:700;}
-.link-badge{background:#f39c12;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:700;}
-.thesis-card{background:#f3e5f5;border-left:4px solid #6a1b9a;padding:14px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
-.thesis-tag{background:#6a1b9a;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
-.india-tag{background:#ff6f00;color:#fff;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
+.free-badge{background:#1565c0;color:#fdd835;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:700;}
+.link-badge{background:#f9a825;color:#1a237e;padding:2px 8px;border-radius:8px;font-size:0.75rem;font-weight:700;}
+.thesis-card{background:#e3f2fd;border-left:4px solid #1565c0;padding:14px 16px;border-radius:8px;margin:8px 0;color:#1a1a1a!important;}
+.thesis-tag{background:#1565c0;color:#fdd835;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
+.india-tag{background:#f9a825;color:#1a237e;padding:2px 8px;border-radius:8px;font-size:0.7rem;font-weight:700;margin-left:4px;}
 </style>
 """, unsafe_allow_html=True)
 
