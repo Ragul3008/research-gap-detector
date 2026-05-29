@@ -138,7 +138,7 @@ def plagiarism_gauge(score, color):
 def sim_bar(papers):
     titles=[p["title"][:50]+"…" if len(p["title"])>50 else p["title"] for p in papers]
     scores=[p["similarity_pct"] for p in papers]; colors=["#e53935" if s>=75 else "#fb8c00" if s>=55 else "#43a047" for s in scores]
-    fig=go.Figure(go.Bar(x=scores,y=titles,orientation="h",marker_color=colors,text=[f"{s:.1f}%" for s in scores],textposition="outside"))
+    fig=go.Figure(go.Bar(x=scores,y=titles,orientation="h",marker_color=colors,text=[f"{s:.1f}%" for s in scores],textposition="outside",textfont=dict(color="#1a1a1a",size=12)))
     fig.update_layout(title="Similarity Scores",xaxis_range=[0,110],height=max(250,len(papers)*40),margin=dict(l=10,r=40,t=40,b=20),paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="#f8f9fa",yaxis=dict(automargin=True)); return fig
 
 def domain_pie(dd):
@@ -147,7 +147,7 @@ def domain_pie(dd):
 
 def year_bar(yd):
     years=[str(y) for y in sorted(int(k) for k in yd.keys()) if y>0]; counts=[yd.get(y,yd.get(int(y),0)) for y in years]
-    fig=go.Figure(go.Bar(x=years,y=counts,marker_color="#1565c0",text=counts,textposition="outside"))
+    fig=go.Figure(go.Bar(x=years,y=counts,marker_color="#1565c0",text=counts,textposition="outside",textfont=dict(color="#1a1a1a",size=12)))
     fig.update_layout(title="Publication Years",height=230,margin=dict(l=10,r=10,t=40,b=20),paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="#f8f9fa"); return fig
 
 def render_results(result):

@@ -134,6 +134,7 @@ def sim_bar(papers):
         x=scores, y=titles, orientation="h",
         marker_color=colors,
         text=[f"{s:.1f}%" for s in scores], textposition="outside",
+        textfont=dict(color="#1a1a1a", size=12),
     ))
     fig.update_layout(title="Similarity Scores", xaxis_range=[0,110],
                       height=max(250,len(papers)*40),
@@ -157,7 +158,8 @@ def year_bar(yd):
     years  = [str(y) for y in sorted(int(k) for k in yd.keys()) if y > 0]
     counts = [yd.get(y, yd.get(int(y), 0)) for y in years]
     fig = go.Figure(go.Bar(x=years, y=counts, marker_color="#1565c0",
-                           text=counts, textposition="outside"))
+                           text=counts, textposition="outside",
+                           textfont=dict(color="#1a1a1a", size=12)))
     fig.update_layout(title="Publication Years", height=240,
                       margin=dict(l=10,r=10,t=40,b=20),
                       paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#f8f9fa")
