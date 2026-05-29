@@ -38,7 +38,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: research_gap_frontend
-    command: streamlit run frontend/app.py --server.port 8501 --server.address 0.0.0.0
+    command: streamlit run frontend/app.py --server.port 8501 --server.address 0.0.0.0 --server.enableCORS false --server.enableXsrfProtection false
     ports:
       - "8501:8501"
     environment:
