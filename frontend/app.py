@@ -501,39 +501,93 @@ def main():
         unsafe_allow_html=True
     )
 
+    # Initialize session state for extracted metadata
+    if "extracted_title" not in st.session_state:
+        st.session_state.extracted_title = ""
+    if "extracted_abstract" not in st.session_state:
+        st.session_state.extracted_abstract = ""
+    if "extracted_keywords" not in st.session_state:
+        st.session_state.extracted_keywords = ""
+    if "extracted_domain" not in st.session_state:
+        st.session_state.extracted_domain = ""
+    if "extracted_full_text" not in st.session_state:
+        st.session_state.extracted_full_text = ""
+
+    # Option 1: File Upload
+    st.subheader("📁 Option 1: Upload a Journal Paper (PDF / TXT)")
+    uploaded_file = st.file_uploader("Upload your journal paper to automatically extract Title, Abstract, Keywords, and Domain", type=["pdf", "txt"])
+
+    if uploaded_file is not None:
+        if st.session_state.get("last_uploaded_file") != uploaded_file.name:
+            with st.spinner("⏳ Extracting metadata from paper..."):
+                try:
+                    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+                    r = requests.post(f"{API_BASE}/api/extract-metadata", files=files, timeout=60)
+                    r.raise_for_status()
+                    res = r.json()
+                    if res.get("status") == "success":
+                        meta = res.get("metadata", {})
+                        st.session_state.extracted_title = meta.get("title", "")
+                        st.session_state.extracted_abstract = meta.get("abstract", "")
+                        st.session_state.extracted_keywords = meta.get("keywords", "")
+                        st.session_state.extracted_domain = meta.get("domain", "")
+                        st.session_state.extracted_full_text = res.get("full_text", "")
+                        st.session_state.last_uploaded_file = uploaded_file.name
+                        st.success("✅ Metadata extracted! Review the populated fields below.")
+                except Exception as e:
+                    st.error(f"❌ Failed to extract metadata: {e}")
+    else:
+        if "last_uploaded_file" in st.session_state:
+            st.session_state.extracted_title = ""
+            st.session_state.extracted_abstract = ""
+            st.session_state.extracted_keywords = ""
+            st.session_state.extracted_domain = ""
+            st.session_state.extracted_full_text = ""
+            del st.session_state.last_uploaded_file
+
+    st.markdown("---")
+
+    # Option 2: Enter/Review details form
     with st.form("form"):
-        st.subheader("📝 Enter Your Research Details")
-        col1,col2 = st.columns([3,1])
+        st.subheader("📝 Option 2: Review & Edit Paper Details")
+        col1, col2 = st.columns([3, 1])
         with col1:
             title = st.text_input("Research Title *",
+                value=st.session_state.extracted_title,
                 placeholder="e.g., Deep Learning for Medical Image Segmentation in Indian Hospitals")
         with col2:
-            domain = st.selectbox("Domain", [
+            domain_options = [
                 "",
                 # Arts & Science
-                "Sociology","History","Political Science","Economics",
-                "Psychology","Environmental Science","Literature","Philosophy",
-                "Anthropology","Education","Geography","Women Studies",
-                "Commerce","Linguistics","Botany","Zoology",
-                "Chemistry","Physics","Mathematics","Statistics",
+                "Sociology", "History", "Political Science", "Economics",
+                "Psychology", "Environmental Science", "Literature", "Philosophy",
+                "Anthropology", "Education", "Geography", "Women Studies",
+                "Commerce", "Linguistics", "Botany", "Zoology",
+                "Chemistry", "Physics", "Mathematics", "Statistics",
                 # English
-                "English Literature","English Language Teaching",
-                "Postcolonial Studies","Comparative Literature","Translation Studies",
+                "English Literature", "English Language Teaching",
+                "Postcolonial Studies", "Comparative Literature", "Translation Studies",
                 # Engineering
-                "Computer Science and Engineering","Electronics and Communication Engineering",
-                "Electrical Engineering","Mechanical Engineering","Civil Engineering",
-                "Chemical Engineering","Aerospace Engineering","Biomedical Engineering",
-                "Artificial Intelligence","Machine Learning","Deep Learning",
-                "Internet of Things","Cybersecurity","Data Science",
-                "Robotics and Automation","VLSI Design","Power Systems Engineering",
-                "Renewable Energy Engineering","Structural Engineering",
-                "Environmental Engineering","Nanotechnology","Materials Science",
-            ])
+                "Computer Science and Engineering", "Electronics and Communication Engineering",
+                "Electrical Engineering", "Mechanical Engineering", "Civil Engineering",
+                "Chemical Engineering", "Aerospace Engineering", "Biomedical Engineering",
+                "Artificial Intelligence", "Machine Learning", "Deep Learning",
+                "Internet of Things", "Cybersecurity", "Data Science",
+                "Robotics and Automation", "VLSI Design", "Power Systems Engineering",
+                "Renewable Energy Engineering", "Structural Engineering",
+                "Environmental Engineering", "Nanotechnology", "Materials Science",
+            ]
+            default_idx = 0
+            if st.session_state.extracted_domain in domain_options:
+                default_idx = domain_options.index(st.session_state.extracted_domain)
+            domain = st.selectbox("Domain", domain_options, index=default_idx)
 
         abstract = st.text_area("Abstract (recommended)",
+            value=st.session_state.extracted_abstract,
             placeholder="Describe your research objectives, methodology, and expected contribution…",
             height=120)
         keywords = st.text_input("Keywords (comma-separated)",
+            value=st.session_state.extracted_keywords,
             placeholder="e.g., deep learning, medical imaging, CNN, India")
 
         submitted = st.form_submit_button("🚀 Analyse Research", use_container_width=True)
@@ -542,10 +596,6 @@ def main():
         if not title.strip():
             st.warning("⚠️ Please enter a research title.")
             return
-
-        steps = ["Retrieving similar papers…","Computing novelty score…",
-                 "Detecting research gaps…","Checking plagiarism…",
-                 "Running hallucination detection…","Generating AI report…"]
 
         with st.spinner("🔍 Running full analysis pipeline…"):
             t0 = time.time()
@@ -556,6 +606,7 @@ def main():
                 "domain":           domain or None,
                 "top_k":            top_k,
                 "check_plagiarism": check_plag,
+                "full_text":        st.session_state.extracted_full_text or None,
             })
 
         if result is None:

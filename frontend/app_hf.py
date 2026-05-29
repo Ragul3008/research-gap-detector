@@ -20,6 +20,9 @@ import plotly.express as px
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from utils.pdf_extractor import extract_text_from_pdf
+from models.metadata_extractor import extract_metadata_from_text
+
 st.set_page_config(page_title="AI Research Novelty & Gap Detector",
                    page_icon="🔬", layout="wide", initial_sidebar_state="expanded")
 
@@ -68,7 +71,7 @@ def load_engines():
         subprocess.run(["python","scripts/build_index.py"],check=True)
     return ResearchRetriever()
 
-def run_analysis(retriever,title,abstract,keywords,domain,top_k,check_plagiarism):
+def run_analysis(retriever,title,abstract,keywords,domain,top_k,check_plagiarism,full_text=None):
     from models.similarity_engine import compute_similarity_stats,rank_results,find_duplicate_risk,summarise_domain_overlap,summarise_year_distribution
     from models.novelty_engine import calculate_novelty_score,get_novelty_suggestions
     from models.gap_engine import detect_research_gaps,suggest_improved_titles
@@ -84,8 +87,9 @@ def run_analysis(retriever,title,abstract,keywords,domain,top_k,check_plagiarism
     title_suggestions=suggest_improved_titles(original_title=title,gap_dimensions=gaps.get("gap_dimensions",{}))
     explanation=generate_explanation({"input":{"title":title,"abstract":abstract,"keywords":keywords,"domain":domain},"novelty":novelty,"gaps":gaps,"similarity_stats":sim_stats,"similar_papers":ranked,"title_suggestions":title_suggestions})
     hallucination=detect_hallucinations(llm_output=explanation,retrieved_papers=papers,novelty_data=novelty)
-    plagiarism=detect_plagiarism(user_title=title,user_abstract=abstract,user_keywords=keywords,retrieved_papers=papers,similarity_stats=sim_stats) if check_plagiarism else {}
-    return {"status":"success","input":{"title":title,"abstract":abstract,"keywords":keywords,"domain":domain},
+    plagiarism_text = full_text if full_text else abstract
+    plagiarism=detect_plagiarism(user_title=title,user_abstract=plagiarism_text,user_keywords=keywords,retrieved_papers=papers,similarity_stats=sim_stats) if check_plagiarism else {}
+    return {"status":"success","input":{"title":title,"abstract":abstract,"keywords":keywords,"domain":domain,"full_text":full_text},
             "novelty":{"label":novelty["label"],"percentage":novelty["percentage"],"color":novelty["color"],"description":novelty["description"],"sub_scores":novelty.get("sub_scores",{}),"suggestions":novelty["suggestions"]},
             "similarity":{"stats":sim_stats,"domain_dist":domain_dist,"year_dist":year_dist,"duplicate_risk":len(duplicates)>0,"duplicates":duplicates},
             "similar_papers":ranked,"gaps":gaps,"title_suggestions":title_suggestions,"explanation":explanation,
@@ -1083,15 +1087,77 @@ def main():
     tab1, tab2 = st.tabs(["🔬 Research Gap Analyser", "📥 Paper & Thesis Downloader 📱"])
 
     with tab1:
+        # Initialize session state for extracted metadata
+        if "extracted_title" not in st.session_state:
+            st.session_state.extracted_title = ""
+        if "extracted_abstract" not in st.session_state:
+            st.session_state.extracted_abstract = ""
+        if "extracted_keywords" not in st.session_state:
+            st.session_state.extracted_keywords = ""
+        if "extracted_domain" not in st.session_state:
+            st.session_state.extracted_domain = ""
+        if "extracted_full_text" not in st.session_state:
+            st.session_state.extracted_full_text = ""
+
+        # Option 1: File Upload
+        st.subheader("📁 Option 1: Upload a Journal Paper (PDF / TXT)")
+        uploaded_file = st.file_uploader("Upload your journal paper to automatically extract Title, Abstract, Keywords, and Domain", type=["pdf", "txt"])
+
+        if uploaded_file is not None:
+            if st.session_state.get("last_uploaded_file") != uploaded_file.name:
+                with st.spinner("⏳ Extracting metadata from paper..."):
+                    try:
+                        filename = uploaded_file.name
+                        file_bytes = uploaded_file.getvalue()
+                        # Extract text
+                        if filename.endswith(".pdf"):
+                            text = extract_text_from_pdf(file_bytes)
+                        else:
+                            text = file_bytes.decode("utf-8", errors="ignore")
+                            
+                        # Extract metadata
+                        meta = extract_metadata_from_text(text)
+                        
+                        st.session_state.extracted_title = meta.get("title", "")
+                        st.session_state.extracted_abstract = meta.get("abstract", "")
+                        st.session_state.extracted_keywords = meta.get("keywords", "")
+                        st.session_state.extracted_domain = meta.get("domain", "")
+                        st.session_state.extracted_full_text = text
+                        st.session_state.last_uploaded_file = uploaded_file.name
+                        st.success("✅ Metadata extracted! Review the populated fields below.")
+                    except Exception as e:
+                        st.error(f"❌ Failed to extract metadata: {e}")
+        else:
+            if "last_uploaded_file" in st.session_state:
+                st.session_state.extracted_title = ""
+                st.session_state.extracted_abstract = ""
+                st.session_state.extracted_keywords = ""
+                st.session_state.extracted_domain = ""
+                st.session_state.extracted_full_text = ""
+                del st.session_state.last_uploaded_file
+
+        st.markdown("---")
+
         with st.form("form"):
-            st.subheader("📝 Enter Your Research Details")
+            st.subheader("📝 Option 2: Review & Edit Paper Details")
             col1,col2 = st.columns([3,1])
             with col1:
-                title = st.text_input("Research Title *", placeholder="e.g., Deep Learning for Medical Image Segmentation in Indian Hospitals")
+                title = st.text_input("Research Title *",
+                    value=st.session_state.extracted_title,
+                    placeholder="e.g., Deep Learning for Medical Image Segmentation in Indian Hospitals")
             with col2:
-                domain = st.selectbox("Domain",[d for d in DOMAIN_LIST if not d.startswith("──")])
-            abstract = st.text_area("Abstract (recommended)", placeholder="Describe your research objectives and methodology…", height=120)
-            keywords = st.text_input("Keywords", placeholder="e.g., deep learning, medical imaging, CNN, India")
+                domain_options = [d for d in DOMAIN_LIST if not d.startswith("──")]
+                default_idx = 0
+                if st.session_state.extracted_domain in domain_options:
+                    default_idx = domain_options.index(st.session_state.extracted_domain)
+                domain = st.selectbox("Domain", domain_options, index=default_idx)
+            abstract = st.text_area("Abstract (recommended)",
+                value=st.session_state.extracted_abstract,
+                placeholder="Describe your research objectives and methodology…",
+                height=120)
+            keywords = st.text_input("Keywords",
+                value=st.session_state.extracted_keywords,
+                placeholder="e.g., deep learning, medical imaging, CNN, India")
             submitted = st.form_submit_button("🚀 Analyse Research", use_container_width=True)
 
         if submitted:
@@ -1101,7 +1167,8 @@ def main():
                     t0 = time.time()
                     result = run_analysis(retriever=retriever,title=title.strip(),abstract=abstract.strip(),
                                           keywords=keywords.strip(),domain=domain or "",
-                                          top_k=top_k,check_plagiarism=check_plag)
+                                          top_k=top_k,check_plagiarism=check_plag,
+                                          full_text=st.session_state.extracted_full_text or None)
                 st.success(f"✅ Analysis complete in {time.time()-t0:.1f}s")
                 render_results(result)
 

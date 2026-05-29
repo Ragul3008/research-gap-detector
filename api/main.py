@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 import uvicorn
@@ -21,6 +21,8 @@ import time
 
 from config.settings import API_HOST, API_PORT, API_RELOAD, TOP_K_RESULTS
 from retrieval.retriever import get_retriever
+from utils.pdf_extractor import extract_text_from_pdf
+from models.metadata_extractor import extract_metadata_from_text
 from models.similarity_engine import (
     compute_similarity_stats, rank_results,
     find_duplicate_risk, summarise_domain_overlap,
@@ -92,6 +94,7 @@ class AnalyzeRequest(BaseModel):
     domain:            Optional[str] = Field(None, max_length=100)
     top_k:             int           = Field(default=TOP_K_RESULTS, ge=3, le=20)
     check_plagiarism:  bool          = Field(default=True)
+    full_text:         Optional[str] = Field(None)
 
     @validator("title")
     def title_not_empty(cls, v):
@@ -285,9 +288,11 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
         # ── 9. Plagiarism detection ───────────
         plagiarism = {}
         if req.check_plagiarism:
+            # If full_text of the paper is provided, run plagiarism checking on the full text
+            plag_text = req.full_text if req.full_text else (req.abstract or "")
             plagiarism = detect_plagiarism(
                 user_title       = req.title,
-                user_abstract    = req.abstract or "",
+                user_abstract    = plag_text,
                 user_keywords    = req.keywords or "",
                 retrieved_papers = papers,
                 similarity_stats = sim_stats,
@@ -305,6 +310,7 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
                 "abstract": req.abstract,
                 "keywords": req.keywords,
                 "domain":   req.domain,
+                "full_text": req.full_text,
             },
             "novelty": {
                 "label":       novelty["label"],
@@ -344,6 +350,41 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
     except Exception as e:
         logger.exception(f"Analysis failed: {e}")
         raise HTTPException(500, f"Analysis error: {str(e)}")
+
+
+@app.post("/api/extract-metadata", tags=["Analysis"])
+async def extract_metadata(file: UploadFile = File(...)):
+    """
+    Accepts an uploaded PDF or TXT research paper file, extracts raw text,
+    and attempts to extract structured metadata (title, abstract, keywords, domain).
+    """
+    filename = file.filename or ""
+    if not (filename.endswith(".pdf") or filename.endswith(".txt")):
+        raise HTTPException(status_code=400, detail="Only PDF and TXT files are supported.")
+        
+    try:
+        file_bytes = await file.read()
+        
+        # 1. Extract text
+        if filename.endswith(".pdf"):
+            logger.info(f"Extracting text from PDF upload: {filename}")
+            text = extract_text_from_pdf(file_bytes)
+        else:
+            logger.info(f"Decoding text from TXT upload: {filename}")
+            text = file_bytes.decode("utf-8", errors="ignore")
+            
+        # 2. Extract metadata fields
+        metadata = extract_metadata_from_text(text)
+        
+        return {
+            "status": "success",
+            "filename": filename,
+            "metadata": metadata,
+            "full_text": text
+        }
+    except Exception as e:
+        logger.exception(f"Metadata extraction failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to parse and extract metadata: {str(e)}")
 
 
 if __name__ == "__main__":
