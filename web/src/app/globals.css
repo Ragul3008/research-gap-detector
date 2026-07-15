@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Crimson+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+
+@import "../styles/tokens.css";
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--color-paper-bg);
+  --color-foreground: var(--color-navy-ink);
+  
+  --color-primary: var(--color-navy-ink);
+  --color-secondary: var(--color-annotation-blue);
+  --color-accent: var(--color-ochre-gold);
+  --color-border: var(--color-margin-grey);
+  --color-destructive: var(--color-warning-red);
+  
+  --color-paper: var(--color-paper-white);
+  --color-grid: var(--color-grid-grey);
+  
+  --font-serif: var(--font-heading);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background-color: var(--color-paper-bg);
+  color: var(--color-navy-ink);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Print view optimization rules */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-break {
+    page-break-before: always;
+  }
+}

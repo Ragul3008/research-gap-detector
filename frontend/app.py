@@ -466,31 +466,6 @@ def render_results(result: Dict[str, Any]):
             else:
                 st.success("✅ No warnings — explanation is well-grounded.")
 
-    flagged = hallucination.get("flagged_claims",[])
-    if flagged:
-        with st.expander(f"🔴 View {len(flagged)} Flagged Claim(s)"):
-            for fc in flagged:
-                sev  = fc.get("severity","LOW")
-                icon = "🔴" if sev=="HIGH" else "🟡" if sev=="MEDIUM" else "🟢"
-                st.markdown(
-                    f'<div class="flagged-claim">{icon} <b>[{sev}]</b> {fc.get("issue","")}<br>'
-                    f'<small><i>"{fc.get("claim","")[:120]}…"</i></small></div>',
-                    unsafe_allow_html=True
-                )
-    else:
-        st.success("✅ No hallucinations detected.")
-
-    # ══ DOWNLOAD ══════════════════════════════
-    st.markdown("---")
-    st.download_button(
-        label="📥 Download Full Analysis (JSON)",
-        data=json.dumps(result, indent=2, ensure_ascii=False),
-        file_name="research_analysis.json",
-        mime="application/json",
-        use_container_width=True,
-    )
-
-
 # ─── Main ────────────────────────────────────
 def main():
     top_k, check_plag = render_sidebar()
@@ -503,7 +478,6 @@ def main():
         unsafe_allow_html=True
     )
 
-    # Initialize session state for extracted metadata
     if "extracted_title" not in st.session_state:
         st.session_state.extracted_title = ""
     if "extracted_abstract" not in st.session_state:
@@ -515,7 +489,6 @@ def main():
     if "extracted_full_text" not in st.session_state:
         st.session_state.extracted_full_text = ""
 
-    # Option 1: File Upload
     st.subheader("📁 Option 1: Upload a Journal Paper (PDF / TXT)")
     uploaded_file = st.file_uploader("Upload your journal paper to automatically extract Title, Abstract, Keywords, and Domain", type=["pdf", "txt"])
 
@@ -535,7 +508,7 @@ def main():
                         st.session_state.extracted_domain = meta.get("domain", "")
                         st.session_state.extracted_full_text = res.get("full_text", "")
                         st.session_state.last_uploaded_file = uploaded_file.name
-                        st.success("✅ Metadata extracted! Review the populated fields below.")
+                        st.success("✅ Metadata extracted! Review the populated fields in the tabs below.")
                 except Exception as e:
                     st.error(f"❌ Failed to extract metadata: {e}")
     else:
@@ -549,74 +522,164 @@ def main():
 
     st.markdown("---")
 
-    # Option 2: Enter/Review details form
-    with st.form("form"):
-        st.subheader("📝 Option 2: Review & Edit Paper Details")
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            title = st.text_input("Research Title *",
-                value=st.session_state.extracted_title,
-                placeholder="e.g., Deep Learning for Medical Image Segmentation in Indian Hospitals")
-        with col2:
-            domain_options = [
-                "",
-                # Arts & Science
-                "Sociology", "History", "Political Science", "Economics",
-                "Psychology", "Environmental Science", "Literature", "Philosophy",
-                "Anthropology", "Education", "Geography", "Women Studies",
-                "Commerce", "Linguistics", "Botany", "Zoology",
-                "Chemistry", "Physics", "Mathematics", "Statistics",
-                # English
-                "English Literature", "English Language Teaching",
-                "Postcolonial Studies", "Comparative Literature", "Translation Studies",
-                # Engineering
-                "Computer Science and Engineering", "Electronics and Communication Engineering",
-                "Electrical Engineering", "Mechanical Engineering", "Civil Engineering",
-                "Chemical Engineering", "Aerospace Engineering", "Biomedical Engineering",
-                "Artificial Intelligence", "Machine Learning", "Deep Learning",
-                "Internet of Things", "Cybersecurity", "Data Science",
-                "Robotics and Automation", "VLSI Design", "Power Systems Engineering",
-                "Renewable Energy Engineering", "Structural Engineering",
-                "Environmental Engineering", "Nanotechnology", "Materials Science",
-            ]
-            default_idx = 0
-            if st.session_state.extracted_domain in domain_options:
-                default_idx = domain_options.index(st.session_state.extracted_domain)
-            domain = st.selectbox("Domain", domain_options, index=default_idx)
+    tab1, tab2 = st.tabs(["🔬 Research Novelty & Gap Detector", "✍️ Literature Review Drafting"])
 
-        abstract = st.text_area("Abstract (recommended)",
-            value=st.session_state.extracted_abstract,
-            placeholder="Describe your research objectives, methodology, and expected contribution…",
-            height=120)
-        keywords = st.text_input("Keywords (comma-separated)",
-            value=st.session_state.extracted_keywords,
-            placeholder="e.g., deep learning, medical imaging, CNN, India")
+    domain_options = [
+        "",
+        "Sociology", "History", "Political Science", "Economics",
+        "Psychology", "Environmental Science", "Literature", "Philosophy",
+        "Anthropology", "Education", "Geography", "Women Studies",
+        "Commerce", "Linguistics", "Botany", "Zoology",
+        "Chemistry", "Physics", "Mathematics", "Statistics",
+        "English Literature", "English Language Teaching",
+        "Postcolonial Studies", "Comparative Literature", "Translation Studies",
+        "Computer Science and Engineering", "Electronics and Communication Engineering",
+        "Electrical Engineering", "Mechanical Engineering", "Civil Engineering",
+        "Chemical Engineering", "Aerospace Engineering", "Biomedical Engineering",
+        "Artificial Intelligence", "Machine Learning", "Deep Learning",
+        "Internet of Things", "Cybersecurity", "Data Science",
+        "Robotics and Automation", "VLSI Design", "Power Systems Engineering",
+        "Renewable Energy Engineering", "Structural Engineering",
+        "Environmental Engineering", "Nanotechnology", "Materials Science",
+    ]
 
-        submitted = st.form_submit_button("🚀 Analyse Research", use_container_width=True)
+    with tab1:
+        with st.form("form_analyze"):
+            st.subheader("📝 Review & Edit Paper Details for Analysis")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                title = st.text_input("Research Title *",
+                    value=st.session_state.extracted_title,
+                    key="tab1_title")
+            with col2:
+                default_idx = 0
+                if st.session_state.extracted_domain in domain_options:
+                    default_idx = domain_options.index(st.session_state.extracted_domain)
+                domain = st.selectbox("Domain", domain_options, index=default_idx, key="tab1_domain")
 
-    if submitted:
-        if not title.strip():
-            st.warning("⚠️ Please enter a research title.")
-            return
+            abstract = st.text_area("Abstract (recommended)",
+                value=st.session_state.extracted_abstract,
+                key="tab1_abstract",
+                height=120)
+            keywords = st.text_input("Keywords (comma-separated)",
+                value=st.session_state.extracted_keywords,
+                key="tab1_keywords")
 
-        with st.spinner("🔍 Running full analysis pipeline…"):
-            t0 = time.time()
-            result = call_api("/api/analyze", {
-                "title":            title.strip(),
-                "abstract":         abstract.strip(),
-                "keywords":         keywords.strip(),
-                "domain":           domain or None,
-                "top_k":            top_k,
-                "check_plagiarism": check_plag,
-                "full_text":        st.session_state.extracted_full_text or None,
-            })
+            submitted = st.form_submit_button("🚀 Analyse Research", use_container_width=True)
 
-        if result is None:
-            return
+        if submitted:
+            if not title.strip():
+                st.warning("⚠️ Please enter a research title.")
+                return
 
-        elapsed = time.time() - t0
-        st.success(f"✅ Full analysis complete in {elapsed:.1f}s")
-        render_results(result)
+            with st.spinner("🔍 Running full analysis pipeline…"):
+                t0 = time.time()
+                result = call_api("/api/analyze", {
+                    "title":            title.strip(),
+                    "abstract":         abstract.strip(),
+                    "keywords":         keywords.strip(),
+                    "domain":           domain or None,
+                    "top_k":            top_k,
+                    "check_plagiarism": check_plag,
+                    "full_text":        st.session_state.extracted_full_text or None,
+                })
+
+            if result is None:
+                return
+
+            elapsed = time.time() - t0
+            st.success(f"✅ Full analysis complete in {elapsed:.1f}s")
+            render_results(result)
+
+    with tab2:
+        with st.form("form_review"):
+            st.subheader("✍️ Drafting Configuration")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                title_rev = st.text_input("Research Title *",
+                    value=st.session_state.extracted_title,
+                    key="tab2_title")
+            with col2:
+                default_idx = 0
+                if st.session_state.extracted_domain in domain_options:
+                    default_idx = domain_options.index(st.session_state.extracted_domain)
+                domain_rev = st.selectbox("Domain", domain_options, index=default_idx, key="tab2_domain")
+
+            abstract_rev = st.text_area("Abstract (recommended)",
+                value=st.session_state.extracted_abstract,
+                key="tab2_abstract",
+                height=120)
+            keywords_rev = st.text_input("Keywords (comma-separated)",
+                value=st.session_state.extracted_keywords,
+                key="tab2_keywords")
+            
+            section_pref = st.selectbox("Section preference", ["thematic", "chronological", "methodological"], index=0)
+
+            submitted_rev = st.form_submit_button("✍️ Generate Literature Review", use_container_width=True)
+
+        if submitted_rev:
+            if not title_rev.strip():
+                st.warning("⚠️ Please enter a research title.")
+                return
+
+            with st.spinner("⏳ Starting background literature review compiler..."):
+                payload = {
+                    "title": title_rev.strip(),
+                    "abstract": abstract_rev.strip(),
+                    "keywords": keywords_rev.strip(),
+                    "domain": domain_rev or None,
+                    "top_k": top_k,
+                    "section_preference": section_pref,
+                    "run_async": True
+                }
+                
+                try:
+                    r = requests.post(f"{API_BASE}/api/literature-review", json=payload, timeout=60)
+                    r.raise_for_status()
+                    res = r.json()
+                    job_id = res.get("job_id")
+                    st.info(f"Background Job started: {job_id}")
+                except Exception as e:
+                    st.error(f"❌ Failed to start job: {e}")
+                    return
+                
+            progress_bar = st.progress(0.0)
+            status_text = st.empty()
+            status = "PENDING"
+            
+            while status in ["PENDING", "RUNNING"]:
+                time.sleep(2)
+                try:
+                    r = requests.get(f"{API_BASE}/api/literature-review/status/{job_id}", timeout=10)
+                    if r.status_code == 200:
+                        status_data = r.json()
+                        status = status_data["status"]
+                        if status == "RUNNING":
+                            progress_bar.progress(0.5)
+                            status_text.info("⏳ Drafting literature review paragraphs (Gemini self-correction loop)...")
+                        elif status == "COMPLETED":
+                            progress_bar.progress(1.0)
+                            status_text.empty()
+                            st.success("✅ Literature Review successfully compiled!")
+                            
+                            review_data = status_data["result"]
+                            st.markdown(review_data["combined_markdown"])
+                            
+                            st.download_button(
+                                label="📥 Download Literature Review Draft (Markdown)",
+                                data=review_data["combined_markdown"],
+                                file_name="literature_review.md",
+                                mime="text/markdown",
+                                use_container_width=True
+                            )
+                            break
+                        elif status == "FAILED":
+                            progress_bar.progress(0.0)
+                            status_text.empty()
+                            st.error(f"❌ Literature review drafting failed: {status_data.get('error', 'Unknown error')}")
+                            break
+                except Exception as e:
+                    status_text.warning(f"⚠️ Connection issue during status check, retrying: {e}")
 
 
 if __name__ == "__main__":

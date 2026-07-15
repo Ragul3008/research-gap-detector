@@ -501,7 +501,7 @@ def generate_dataset(general_n=600, english_n=300, engineering_n=600):
 
 if __name__ == "__main__":
     os.makedirs("data/raw", exist_ok=True)
-    df = generate_dataset()
+    df = generate_dataset(40, 20, 40)
     df.to_csv("data/raw/papers.csv", index=False)
 
     print(f"✅ Dataset saved to data/raw/papers.csv")

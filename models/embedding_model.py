@@ -7,6 +7,7 @@ Handles model loading, batched encoding, and normalisation.
 
 import logging
 import numpy as np
+import torch
 from typing import List, Union
 
 from sentence_transformers import SentenceTransformer
@@ -29,7 +30,9 @@ def get_model() -> SentenceTransformer:
     global _model_instance
     if _model_instance is None:
         logger.info(f"Loading embedding model: {EMBEDDING_MODEL_NAME}")
-        _model_instance = SentenceTransformer(EMBEDDING_MODEL_NAME)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device for embedding model: {device}")
+        _model_instance = SentenceTransformer(EMBEDDING_MODEL_NAME, device=device)
         logger.info("Embedding model loaded successfully.")
     return _model_instance
 

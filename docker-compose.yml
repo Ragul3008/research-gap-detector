@@ -1,12 +1,30 @@
 # ─────────────────────────────────────────────
 # docker-compose.yml
 # AI Research Novelty & Gap Detector
-# Runs both API and Streamlit frontend
+# Runs API, PostgreSQL, and Streamlit frontend
 # ─────────────────────────────────────────────
 
 version: "3.9"
 
 services:
+
+  db:
+    image: postgres:15-alpine
+    container_name: research_gap_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=research_gap
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d research_gap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   api:
     build:
@@ -21,10 +39,20 @@ services:
       - API_HOST=0.0.0.0
       - API_PORT=8000
       - LOG_LEVEL=INFO
-      # Set your Anthropic API key here for LLM explanations (optional)
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/research_gap
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     volumes:
-      - ./data:/app/data      # persist index and processed data
+      - ./data:/app/data
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -50,4 +78,6 @@ services:
 
 volumes:
   research_data:
+    driver: local
+  postgres_data:
     driver: local

@@ -29,10 +29,20 @@ METADATA_PATH   = EMBEDDINGS_DIR / "metadata.pkl"
 # Fallback: all-MiniLM-L6-v2    (lightweight, fast)
 EMBEDDING_MODEL_NAME = os.getenv(
     "EMBEDDING_MODEL",
-    "all-MiniLM-L6-v2"
+    "BAAI/bge-large-en-v1.5"
 )
 EMBEDDING_DIM = 1024   # bge-large-en dimension; 384 for MiniLM
 BATCH_SIZE    = 32
+
+CROSS_ENCODER_MODEL_NAME = os.getenv(
+    "CROSS_ENCODER_MODEL",
+    "cross-encoder/ms-marco-MiniLM-L-6-v2"
+)
+TAXONOMY_CACHE_PATH = DATA_DIR / "embeddings" / "taxonomy_cache.json"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/research_gap"
+)
 
 # ─────────────────────────────────────────────
 # FAISS retrieval

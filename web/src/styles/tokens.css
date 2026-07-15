@@ -1,0 +1,20 @@
+:root {
+  /* Colors - Cool Annotation Ink on Manuscript Paper */
+  --color-paper-bg: #F4F6F9;
+  --color-paper-white: #FFFFFF;
+  --color-navy-ink: #1A2536;
+  --color-annotation-blue: #2563EB;
+  --color-ochre-gold: #B25E00;
+  --color-margin-grey: #CBD5E1;
+  --color-grid-grey: #E5E7EB;
+  --color-warning-red: #C92A2A;
+  
+  /* Alert Backgrounds */
+  --color-alert-red-bg: #FFF5F5;
+  --color-alert-gold-bg: #FFF9DB;
+  
+  /* Fonts */
+  --font-heading: "Crimson Pro", Georgia, serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}

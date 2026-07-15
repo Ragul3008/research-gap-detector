@@ -7,19 +7,23 @@ Integrated: Gemini LLM + Hallucination Detection + Plagiarism Detection
 
 import sys
 import logging
+import uuid
+import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from contextlib import asynccontextmanager
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 import uvicorn
 import time
 
-from config.settings import API_HOST, API_PORT, API_RELOAD, TOP_K_RESULTS
+from config.settings import API_HOST, API_PORT, API_RELOAD, TOP_K_RESULTS, DATABASE_URL
 from retrieval.retriever import get_retriever
 from utils.pdf_extractor import extract_text_from_pdf
 from models.metadata_extractor import extract_metadata_from_text
@@ -30,7 +34,7 @@ from models.similarity_engine import (
 )
 from models.novelty_engine import calculate_novelty_score, get_novelty_suggestions
 from models.gap_engine import detect_research_gaps, suggest_improved_titles
-from models.explanation_engine import generate_explanation, enhance_gaps_with_llm
+from models.explanation_engine import generate_explanation, enhance_gaps_with_llm, suggest_relevant_authors
 from models.hallucination_detector import detect_hallucinations
 from models.plagiarism_detector import detect_plagiarism
 
@@ -42,12 +46,86 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────
+# DB Helpers
+# ─────────────────────────────────────────────
+
+def init_db():
+    """Create jobs table in PostgreSQL if not exists."""
+    logger.info("Connecting to PostgreSQL to initialise jobs table...")
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS literature_review_jobs (
+                job_id VARCHAR(100) PRIMARY KEY,
+                status VARCHAR(50) NOT NULL,
+                result TEXT,
+                error TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        cur.close()
+        logger.info("PostgreSQL database initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize PostgreSQL database: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def save_job(job_id: str, status: str, result: Optional[str] = None, error: Optional[str] = None):
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO literature_review_jobs (job_id, status, result, error, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (job_id) DO UPDATE SET
+                status = EXCLUDED.status,
+                result = COALESCE(EXCLUDED.result, literature_review_jobs.result),
+                error = COALESCE(EXCLUDED.error, literature_review_jobs.error),
+                updated_at = CURRENT_TIMESTAMP;
+        """, (job_id, status, result, error))
+        conn.commit()
+        cur.close()
+    except Exception as e:
+        logger.error(f"Failed to save job {job_id} to database: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def get_job(job_id: str) -> Optional[Dict[str, Any]]:
+    conn = None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT job_id, status, result, error, created_at, updated_at FROM literature_review_jobs WHERE job_id = %s", (job_id,))
+        row = cur.fetchone()
+        cur.close()
+        if row:
+            row["created_at"] = str(row["created_at"])
+            row["updated_at"] = str(row["updated_at"])
+            return dict(row)
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get job {job_id} from database: {e}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+# ─────────────────────────────────────────────
 # Lifespan
 # ─────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting AI Research Novelty & Gap Detector API v3.0 …")
+    init_db()
     try:
         retriever = get_retriever()
         app.state.retriever = retriever
@@ -92,7 +170,8 @@ class AnalyzeRequest(BaseModel):
     abstract:          Optional[str] = Field(None, max_length=3000)
     keywords:          Optional[str] = Field(None, max_length=500)
     domain:            Optional[str] = Field(None, max_length=100)
-    top_k:             int           = Field(default=TOP_K_RESULTS, ge=3, le=20)
+    top_k:             int           = Field(default=TOP_K_RESULTS, ge=1, le=100)
+    num_authors:       int           = Field(default=10, ge=1, le=100)
     check_plagiarism:  bool          = Field(default=True)
     full_text:         Optional[str] = Field(None)
 
@@ -267,6 +346,15 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
             gap_dimensions = gaps.get("gap_dimensions", {}),
         )
 
+        # ── 6.5 Author suggestions ────────────
+        author_suggestions = suggest_relevant_authors(
+            title = req.title,
+            abstract = req.abstract or "",
+            keywords = req.keywords or "",
+            domain = req.domain or "",
+            num_authors = req.num_authors
+        )
+
         # ── 7. LLM explanation ────────────────
         full_analysis = {
             "input":             req.dict(),
@@ -275,6 +363,7 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
             "similarity_stats":  sim_stats,
             "similar_papers":    ranked,
             "title_suggestions": title_suggestions,
+            "author_suggestions": author_suggestions,
         }
         explanation = generate_explanation(full_analysis)
 
@@ -283,6 +372,7 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
             llm_output       = explanation,
             retrieved_papers = papers,
             novelty_data     = novelty,
+            gap_data         = gaps,
         )
 
         # ── 9. Plagiarism detection ───────────
@@ -331,6 +421,7 @@ async def analyze_research(req: AnalyzeRequest, request: Request):
             "similar_papers":    ranked,
             "gaps":              gaps,
             "title_suggestions": title_suggestions,
+            "author_suggestions": author_suggestions,
             "explanation":       explanation,
             "hallucination": {
                 "grounding_score":     hallucination.get("grounding_score", 100),
@@ -385,6 +476,90 @@ async def extract_metadata(file: UploadFile = File(...)):
     except Exception as e:
         logger.exception(f"Metadata extraction failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to parse and extract metadata: {str(e)}")
+
+
+class LiteratureReviewRequest(BaseModel):
+    title: str = Field(..., min_length=5, max_length=500)
+    abstract: Optional[str] = Field(None, max_length=3000)
+    keywords: Optional[str] = Field(None, max_length=500)
+    domain: Optional[str] = Field(None, max_length=100)
+    top_k: int = Field(default=8, ge=3, le=20)
+    section_preference: str = Field(default="thematic")
+    run_async: bool = Field(default=True)
+
+def run_literature_review_task(
+    job_id: str,
+    title: str,
+    abstract: Optional[str],
+    keywords: Optional[str],
+    domain: Optional[str],
+    top_k: int,
+    section_preference: str
+):
+    save_job(job_id, "RUNNING")
+    try:
+        retriever = get_retriever()
+        papers = retriever.retrieve(
+            title=title, abstract=abstract or "",
+            keywords=keywords or "", top_k=top_k
+        )
+        gaps = detect_research_gaps(
+            retrieved_papers=papers,
+            user_title=title,
+            user_keywords=keywords or ""
+        )
+        from models.literature_review_engine import LiteratureReviewService
+        review = LiteratureReviewService.compile_review(
+            query_title=title,
+            retrieved_papers=papers,
+            gap_data=gaps,
+            section_preference=section_preference
+        )
+        save_job(job_id, "COMPLETED", result=json.dumps(review))
+        logger.info(f"Background Job {job_id} completed successfully.")
+    except Exception as e:
+        logger.exception(f"Background Job {job_id} failed: {e}")
+        save_job(job_id, "FAILED", error=str(e))
+
+@app.post("/api/literature-review", tags=["Literature Review"])
+async def create_literature_review(req: LiteratureReviewRequest, background_tasks: BackgroundTasks):
+    job_id = str(uuid.uuid4())
+    save_job(job_id, "PENDING")
+    
+    if req.run_async:
+        background_tasks.add_task(
+            run_literature_review_task,
+            job_id, req.title, req.abstract, req.keywords, req.domain, req.top_k, req.section_preference
+        )
+        return {"job_id": job_id, "status": "PENDING", "message": "Literature review compilation started in background."}
+    else:
+        run_literature_review_task(
+            job_id, req.title, req.abstract, req.keywords, req.domain, req.top_k, req.section_preference
+        )
+        job = get_job(job_id)
+        if job and job["status"] == "COMPLETED":
+            return {"job_id": job_id, "status": "COMPLETED", "result": json.loads(job["result"])}
+        else:
+            raise HTTPException(500, f"Compilation failed: {job.get('error') if job else 'Unknown error'}")
+
+@app.get("/api/literature-review/status/{job_id}", tags=["Literature Review"])
+async def check_literature_review_status(job_id: str):
+    job = get_job(job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found.")
+        
+    response = {
+        "job_id": job["job_id"],
+        "status": job["status"],
+        "created_at": job["created_at"],
+        "updated_at": job["updated_at"]
+    }
+    if job["status"] == "COMPLETED" and job["result"]:
+        response["result"] = json.loads(job["result"])
+    elif job["status"] == "FAILED" and job["error"]:
+        response["error"] = job["error"]
+        
+    return response
 
 
 if __name__ == "__main__":
