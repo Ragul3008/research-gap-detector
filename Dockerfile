@@ -12,8 +12,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
     DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gap_detector
 
-# System dependencies
-RUN apt-get update && apt-get install -y \
+# System dependencies (non-interactive to avoid tzdata prompt)
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Kolkata
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    apt-get update && apt-get install -y \
     libgomp1 gcc g++ curl postgresql postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
